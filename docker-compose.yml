@@ -1,0 +1,105 @@
+version: '3.9'
+
+services:
+  # ─── MySQL Database ───────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: hotel_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${DB_NAME:-hotel_management}
+      MYSQL_USER: ${DB_USER:-hotel_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-hotel123}
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    networks:
+      - hotel_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-rootpassword}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # ─── Backend API ──────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: hotel_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 5000
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: ${DB_NAME:-hotel_management}
+      DB_USER: ${DB_USER:-hotel_user}
+      DB_PASSWORD: ${DB_PASSWORD:-hotel123}
+      JWT_SECRET: ${JWT_SECRET:-supersecretjwtkey2024hotelmanagement}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      CLIENT_STAFF_URL: http://localhost:3001
+      CLIENT_CUSTOMER_URL: http://localhost:3002
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    networks:
+      - hotel_net
+
+  # ─── Staff Web Dashboard ───────────────────────────────────────
+  staff-web:
+    build:
+      context: ./frontend/staff-web
+      dockerfile: Dockerfile
+    container_name: hotel_staff_web
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+      VITE_SOCKET_URL: http://localhost:5000
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./frontend/staff-web:/app
+      - /app/node_modules
+    networks:
+      - hotel_net
+
+  # ─── Customer PWA ─────────────────────────────────────────────
+  customer-pwa:
+    build:
+      context: ./frontend/customer-pwa
+      dockerfile: Dockerfile
+    container_name: hotel_customer_pwa
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://localhost:5000/api
+      VITE_SOCKET_URL: http://localhost:5000
+    ports:
+      - "3000:3000"
+      - "3002:3000"
+    volumes:
+      - ./frontend/customer-pwa:/app
+      - /app/node_modules
+    networks:
+      - hotel_net
+
+volumes:
+  db_data:
+
+networks:
+  hotel_net:
+    driver: bridge

@@ -1,0 +1,30 @@
+{
+  "name": "hotel-management-backend",
+  "version": "1.0.0",
+  "description": "Hotel Management System — REST API (Node.js + Express)",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.js",
+    "dev": "nodemon src/app.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@google/genai": "^2.22.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-validator": "^7.2.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "mysql2": "^3.11.0",
+    "sequelize": "^6.37.3",
+    "socket.io": "^4.7.5",
+    "uuid": "^10.0.0",
+    "winston": "^3.14.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
