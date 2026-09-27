@@ -139,7 +139,7 @@ const Booking = sequelize.define('Booking', {
   booking_source: { type: DataTypes.ENUM('Web','Staff','Phone','Walkin'), defaultValue: 'Web' },
   confirmed_by: DataTypes.INTEGER,
   booking_date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
-}, { tableName: 'bookings' });
+}, { tableName: 'bookings', createdAt: 'booking_date' });
 
 // ── Service ───────────────────────────────────────────────────
 const Service = sequelize.define('Service', {
@@ -233,7 +233,7 @@ const Payment = sequelize.define('Payment', {
   processed_by: DataTypes.INTEGER,
   paid_at: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
   notes: DataTypes.STRING(255),
-}, { tableName: 'payments', updatedAt: false });
+}, { tableName: 'payments', timestamps: false });
 
 // ── Notification ──────────────────────────────────────────────
 const Notification = sequelize.define('Notification', {

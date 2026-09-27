@@ -44,7 +44,40 @@ const getBookingById = async (req, res, next) => {
 // POST /api/bookings
 const createBooking = async (req, res, next) => {
   try {
-    const { customer_id, room_id, checkin_date, checkout_date, num_guests, special_requests } = req.body;
+    const {
+      customer_id,
+      room_id,
+      checkin_date,
+      checkout_date,
+      num_guests,
+      special_requests,
+      guest_name,
+      guest_email,
+      guest_phone,
+    } = req.body;
+
+    let targetCustomerId = customer_id;
+    if (!targetCustomerId) {
+      if (guest_email) {
+        let customer = await Customer.findOne({ where: { email: guest_email } });
+        if (!customer) {
+          customer = await Customer.create({
+            full_name: guest_name || 'Khách vãng lai',
+            email: guest_email,
+            phone: guest_phone || '',
+            id_type: 'Other',
+            id_number: `GUEST-${Date.now()}`,
+            nationality: 'Vietnamese',
+          });
+        }
+        targetCustomerId = customer.id;
+      } else if (req.user) {
+        const cust = await Customer.findOne({ where: { user_id: req.user.id } });
+        if (cust) targetCustomerId = cust.id;
+      }
+    }
+
+    if (!targetCustomerId) throw createError('Thông tin khách hàng là bắt buộc', 400);
 
     // Check room availability
     const room = await Room.findByPk(room_id, { include: [{ model: RoomType, as: 'roomType' }] });
@@ -77,7 +110,7 @@ const createBooking = async (req, res, next) => {
     const room_price_total = price_per_night * nights;
 
     const booking = await Booking.create({
-      customer_id,
+      customer_id: targetCustomerId,
       room_id,
       checkin_date,
       checkout_date,

@@ -23,6 +23,7 @@ const invoicesRoutes     = require('./modules/invoices/invoices.routes');
 const dashboardRoutes    = require('./modules/dashboard/dashboard.routes');
 const notificationsRoutes= require('./modules/notifications/notifications.routes');
 const aiRoutes           = require('./modules/ai/ai.routes');
+const paymentsRoutes     = require('./modules/payments/payments.routes');
 
 // ── App setup ────────────────────────────────────────────────
 const app = express();
@@ -112,6 +113,7 @@ app.use(`${API}/services`,      servicesRoutes);
 app.use(`${API}/invoices`,      invoicesRoutes);
 app.use(`${API}/dashboard`,     dashboardRoutes);
 app.use(`${API}/notifications`, notificationsRoutes);
+app.use(`${API}/payments`,    paymentsRoutes);
 
 // 404 handler
 app.use((req, res) => {

@@ -28,9 +28,10 @@ export default function App() {
   });
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [activeTab, setActiveTab] = useState('explore'); // explore, my-stay, service, invoice
+  const [activeTab, setActiveTab] = useState('explore'); // explore, my-stay, service, invoice, profile
   const [conciergeOpen, setConciergeOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [showBookingModal, setShowBookingModal] = useState(null);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [branches, setBranches] = useState([]);
@@ -360,9 +361,30 @@ export default function App() {
     alert(`Đã đặt dịch vụ "${service.name}" cho Phòng 101!`);
   };
 
-  const filteredRooms = selectedCategory === 'All'
-    ? availableRooms
-    : availableRooms.filter(r => r.category === selectedCategory);
+  const categoryGridItems = [
+    { id: 'hotel', label: 'Khách sạn', icon: '🏨', color: '#4C1D95', bg: '#EDE9FE', category: 'All' },
+    { id: 'flight', label: 'Vé máy bay', icon: '✈️', color: '#0EA5E9', bg: '#E0F2FE' },
+    { id: 'activity', label: 'Vui chơi', icon: '🎡', color: '#DB2777', bg: '#FCE7F3' },
+    { id: 'train', label: 'Vé tàu hỏa', icon: '🚆', color: '#EA580C', bg: '#FFEDD5' },
+    { id: 'bus', label: 'Vé xe khách', icon: '🚌', color: '#16A34A', bg: '#DCFCE7' },
+    { id: 'cruise', label: 'Du thuyền', icon: '🚢', color: '#F43F5E', bg: '#FFE4E6' },
+    { id: 'combo', label: 'Combo Tết', icon: '🎁', color: '#7C3AED', bg: '#F3E8FF' },
+    { id: 'tour', label: 'Tour du lịch', icon: '🗺️', color: '#EC4899', bg: '#FCE7F3' },
+    { id: 'carRental', label: 'Thuê xe', icon: '🚗', color: '#0D9488', bg: '#CCFBF1' },
+    { id: 'villa', label: 'Biệt thự Villa', icon: '🏖️', color: '#4C1D95', bg: '#EDE9FE', category: 'Presidential' },
+  ];
+
+  const filteredRooms = useMemo(() => {
+    return availableRooms.filter(r => {
+      const matchCat = selectedCategory === 'All' || 
+        r.category?.toLowerCase() === selectedCategory.toLowerCase();
+      const matchSearch = !searchQuery.trim() || 
+        r.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+        r.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        String(r.roomNumber || '').includes(searchQuery);
+      return matchCat && matchSearch;
+    });
+  }, [availableRooms, selectedCategory, searchQuery]);
 
   const conciergeBookingContext = useMemo(() => {
     const active =
@@ -436,17 +458,66 @@ export default function App() {
       {/* TAB 1: EXPLORE / SEARCH ROOMS */}
       {activeTab === 'explore' && (
         <main>
+          {/* Floating Category Grid (5 cols x 2 rows, color-coded circular icons - Tokens Spec) */}
+          <div className="category-grid-card">
+            <div className="category-grid-layout">
+              {categoryGridItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="category-grid-item"
+                  onClick={() => {
+                    if (item.category) {
+                      setSelectedCategory(item.category);
+                    } else {
+                      alert(`Dịch vụ ${item.label} đang được tích hợp thêm!`);
+                    }
+                  }}
+                >
+                  <div
+                    className="category-icon-circle"
+                    style={{ backgroundColor: item.bg, color: item.color }}
+                  >
+                    <span>{item.icon}</span>
+                  </div>
+                  <span className="category-grid-label">{item.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Search Bar (Radius Pill & Elevation - Tokens Spec) */}
+          <div className="search-pill-container">
+            <span className="search-pill-icon">🔍</span>
+            <input
+              type="text"
+              className="search-pill-input"
+              placeholder="Tìm phòng, hạng phòng hoặc số phòng..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                style={{ background: 'none', border: 'none', color: '#94A3B8', cursor: 'pointer', fontSize: '14px' }}
+                onClick={() => setSearchQuery('')}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Promo Card Banner (Gradient Header Colors) */}
           <div className="hero-banner">
-            <h2>Nghỉ Dưỡng Thượng Lưu</h2>
-            <p>Giảm ngay 20% khi đặt phòng trực tiếp qua LuxStay App</p>
+            <h2>Nghỉ Dưỡng Thượng Lưu LuxStay</h2>
+            <p>Giảm ngay 20% khi đặt phòng trực tiếp qua hệ thống LuxStay PWA</p>
           </div>
 
           <div className="section-title">
-            <span>Danh Mục Hạng Phòng</span>
+            <span>Chi Nhánh Hoạt Động</span>
           </div>
 
-          <div className="form-group-pwa" style={{ margin: '0 18px 18px', padding: '0' }}>
-            <label style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Chi nhánh / khu vực</label>
+          <div className="form-group-pwa">
+            <label>Chọn chi nhánh / khu vực:</label>
             <select
               className="form-input"
               value={selectedBranchId}
@@ -458,6 +529,11 @@ export default function App() {
             </select>
           </div>
 
+          <div className="section-title">
+            <span>Danh Mục Hạng Phòng</span>
+          </div>
+
+          {/* Filter Chips Bar (Horizontal Scroll - Tokens Spec) */}
           <div className="categories-bar">
             {['All', 'Deluxe', 'Executive', 'Presidential', 'Standard'].map(cat => (
               <button
@@ -475,27 +551,28 @@ export default function App() {
           </div>
 
           {roomsError && (
-            <div style={{ margin: '0 18px 12px', color: '#ffb4b4', fontSize: '12px' }}>{roomsError}</div>
+            <div style={{ margin: '0 16px 12px', color: 'var(--status-error)', fontSize: '12px' }}>{roomsError}</div>
           )}
 
           <div className="room-list">
             {roomsLoading ? (
-              <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)' }}>Đang tải phòng khả dụng...</div>
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>Đang tải phòng khả dụng...</div>
             ) : filteredRooms.length === 0 ? (
-              <div style={{ padding: '18px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                Không có phòng trống cho ngày và chi nhánh đã chọn.
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                Không có phòng trống phù hợp cho ngày và chi nhánh đã chọn.
               </div>
             ) : (
               filteredRooms.map(room => (
                 <div key={room.id} className="pwa-room-card">
                   <div className="room-img-wrapper" style={{ backgroundImage: `url(${room.image})` }}>
-                    <div className="room-badge">★ {room.rating} Superb</div>
+                    <div className="room-badge">Tầng {room.floor || 1} · {room.category}</div>
+                    <div className="room-rating-pill">★ {room.rating}</div>
                   </div>
                   <div className="room-card-info">
                     <h3>{room.name}</h3>
                     <div className="room-amenities">
                       {room.amenities.map((am, i) => (
-                        <span key={i}>• {am}</span>
+                        <span key={i}>✓ {am}</span>
                       ))}
                     </div>
                     <div className="room-price-row">
@@ -620,7 +697,7 @@ export default function App() {
           bookingForm={bookingForm}
           onClose={() => { setShowBookingModal(null); setBookingSuccess(false); }}
           onLoginRequest={() => { setShowBookingModal(null); setAuthMode('login'); setAuthModalOpen(true); setAuthError(''); }}
-          onConfirm={async ({ contactInfo }) => {
+          onConfirm={async ({ contactInfo, bookingMode, totalPrice }) => {
             // Sync contactInfo back into bookingForm state
             setBookingForm((prev) => ({
               ...prev,
@@ -630,20 +707,25 @@ export default function App() {
             }));
 
             const selectedRoom = availableRooms.find((room) => room.id === Number(showBookingModal?.id)) || showBookingModal;
-            const customerId = user?.customerId || await ensureCustomerProfile(user);
-
-            if (!customerId) throw new Error('Tài khoản chưa có hồ sơ khách hàng. Vui lòng đăng nhập lại.');
             if (!selectedRoom?.id) throw new Error('Bạn chưa chọn phòng hợp lệ để đặt.');
 
+            let customerId = user?.customerId;
+            if (!customerId && user) {
+              customerId = await ensureCustomerProfile(user);
+            }
+
             const payload = {
-              customer_id: Number(customerId),
+              customer_id: customerId ? Number(customerId) : undefined,
+              guest_name: contactInfo.fullName,
+              guest_email: contactInfo.email,
+              guest_phone: contactInfo.phone,
               room_id: Number(selectedRoom.id),
               hotel_branch_id: Number(selectedBranchId || selectedRoom.hotel_branch_id || 1),
               checkin_date: bookingForm.checkIn,
               checkout_date: bookingForm.checkOut,
               num_guests: Number(bookingForm.guests || 1),
               special_requests: 'Booked through LuxStay PWA',
-              booking_source: 'Web',
+              booking_source: user ? 'Web' : 'Guest',
             };
 
             const response = await api.post('/bookings', payload);
@@ -655,13 +737,16 @@ export default function App() {
               roomNumber: selectedRoom.roomNumber || 'Dự kiến',
               checkIn: bookingForm.checkIn,
               checkOut: bookingForm.checkOut,
-              totalPrice: Number(selectedRoom.price || 0) * Math.max(1, Math.ceil((new Date(bookingForm.checkOut) - new Date(bookingForm.checkIn)) / (1000 * 60 * 60 * 24))),
+              totalPrice: totalPrice || (Number(selectedRoom.price || 0) * Math.max(1, Math.ceil((new Date(bookingForm.checkOut) - new Date(bookingForm.checkIn)) / (1000 * 60 * 60 * 24)))),
               status: 'Confirmed (Chờ Check-in)'
             };
 
-            setMyBookings([newBk, ...myBookings]);
-            // Navigate to my-stay after modal closes
-            setTimeout(() => setActiveTab('my-stay'), 1800);
+            setMyBookings((prev) => [newBk, ...prev]);
+
+            return {
+              bookingId: createdBooking?.id,
+              booking: createdBooking,
+            };
           }}
         />
       )}
@@ -775,7 +860,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation (5 Items according to design-tokens.json) */}
       <nav className="bottom-nav">
         <button className={`nav-btn ${activeTab === 'explore' ? 'active' : ''}`} onClick={() => setActiveTab('explore')}>
           <span className="icon">🏨</span>
@@ -792,6 +877,20 @@ export default function App() {
         <button className={`nav-btn ${activeTab === 'invoice' ? 'active' : ''}`} onClick={() => setActiveTab('invoice')}>
           <span className="icon">🧾</span>
           <span>Hóa Đơn</span>
+        </button>
+        <button
+          className={`nav-btn ${activeTab === 'profile' ? 'active' : ''}`}
+          onClick={() => {
+            if (user) {
+              alert(`Xin chào ${user.full_name || user.email}!`);
+            } else {
+              setAuthMode('login');
+              setAuthModalOpen(true);
+            }
+          }}
+        >
+          <span className="icon">👤</span>
+          <span>Tài Khoản</span>
         </button>
       </nav>
     </div>

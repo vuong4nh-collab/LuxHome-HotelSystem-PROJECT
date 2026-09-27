@@ -54,4 +54,27 @@ const authorize = (...roles) => {
   };
 };
 
-module.exports = { authenticate, authorize };
+/**
+ * Middleware: Optional JWT verification (for guest checkout & public APIs)
+ */
+const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const user = await User.findByPk(decoded.id, {
+        include: [{ model: Role, as: 'role' }],
+        attributes: { exclude: ['password_hash'] },
+      });
+      if (user && user.is_active) {
+        req.user = user;
+      }
+    }
+  } catch (err) {
+    // Silently continue without user
+  }
+  next();
+};
+
+module.exports = { authenticate, authorize, optionalAuth };
