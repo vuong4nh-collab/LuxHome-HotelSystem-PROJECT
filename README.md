@@ -1,4 +1,4 @@
-# LuxStay Hotel Management System — Plan A Complete Implementation
+# LuxHome Hotel Management System — Plan A Complete Implementation
 
 Hệ thống Quản lý Khách sạn 5 sao toàn diện bao gồm **Backend RESTful API + Socket.IO**, **Staff Web Dashboard**, và **Customer Mobile PWA App**.
 
