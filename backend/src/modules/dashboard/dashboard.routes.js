@@ -10,5 +10,8 @@ router.get('/summary', ctrl.getSummary);
 router.get('/revenue', ctrl.getRevenue);
 router.get('/occupancy', ctrl.getOccupancy);
 router.get('/room-stats', ctrl.getRoomStats);
+router.get('/stats', ctrl.getStats);
+router.get('/traffic', ctrl.getTraffic);
+router.get('/social', ctrl.getSocial);
 
 module.exports = router;

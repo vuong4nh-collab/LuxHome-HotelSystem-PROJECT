@@ -8,24 +8,33 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor — attach token
+// Request interceptor — attach token (support both keys for consistency)
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('hotel_token');
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  const token = localStorage.getItem('luxstay_token') || localStorage.getItem('hotel_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
-// Response interceptor — handle 401
+// Response interceptor — handle 401 without hard window.location.href page reload loop
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
+      localStorage.removeItem('luxstay_token');
+      localStorage.removeItem('luxstay_user');
       localStorage.removeItem('hotel_token');
       localStorage.removeItem('hotel_user');
-      window.location.href = '/login';
+
+      // Only notify app to switch to login state if not skipped
+      if (!err.config?._skipAuthRedirect) {
+        window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+      }
     }
     return Promise.reject(err);
   }
 );
 
 export default api;
+
