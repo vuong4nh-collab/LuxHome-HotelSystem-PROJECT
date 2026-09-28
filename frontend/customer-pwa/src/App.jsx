@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Home, ClipboardList, KeyRound, UserRound, MoreHorizontal, MessageCircle, ReceiptText, LogIn, LogOut } from 'lucide-react';
 import api from './api';
 import ConciergeChat from './components/ConciergeChat';
 import BookingFlow from './components/BookingFlow';
@@ -28,12 +29,11 @@ export default function App() {
   });
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [activeTab, setActiveTab] = useState('explore'); // explore, my-stay, service, invoice, profile
+  const [activeTab, setActiveTab] = useState('explore');
   const [conciergeOpen, setConciergeOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [showBookingModal, setShowBookingModal] = useState(null);
-  const [bookingSuccess, setBookingSuccess] = useState(false);
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [availableRooms, setAvailableRooms] = useState([]);
@@ -291,64 +291,7 @@ export default function App() {
     }
   };
 
-  const handleBookSubmit = async (e) => {
-    e.preventDefault();
 
-    if (!user) {
-      setAuthError('Bạn cần đăng nhập để tiếp tục xác nhận đặt phòng và thanh toán.');
-      setAuthMode('login');
-      setAuthModalOpen(true);
-      return;
-    }
-
-    try {
-      const selectedRoom = availableRooms.find((room) => room.id === Number(showBookingModal?.id)) || showBookingModal;
-      const customerId = user.customerId || await ensureCustomerProfile(user);
-
-      if (!customerId) {
-        throw new Error('Tài khoản chưa có hồ sơ khách hàng. Vui lòng đăng nhập lại.');
-      }
-
-      if (!selectedRoom?.id) {
-        throw new Error('Bạn chưa chọn phòng hợp lệ để đặt.');
-      }
-
-      const payload = {
-        customer_id: Number(customerId),
-        room_id: Number(selectedRoom.id),
-        hotel_branch_id: Number(selectedBranchId || selectedRoom.hotel_branch_id || 1),
-        checkin_date: bookingForm.checkIn,
-        checkout_date: bookingForm.checkOut,
-        num_guests: Number(bookingForm.guests || 1),
-        special_requests: 'Booked through LuxStay PWA',
-        booking_source: 'Web',
-      };
-
-      const response = await api.post('/bookings', payload);
-      const createdBooking = response?.data?.data;
-
-      const newBk = {
-        id: `BK${createdBooking?.id || Math.floor(1000 + Math.random() * 9000)}`,
-        roomName: selectedRoom.name,
-        roomNumber: selectedRoom.roomNumber || 'Dự kiến',
-        checkIn: bookingForm.checkIn,
-        checkOut: bookingForm.checkOut,
-        totalPrice: Number(selectedRoom.price || 0) * Math.max(1, Math.ceil((new Date(bookingForm.checkOut) - new Date(bookingForm.checkIn)) / (1000 * 60 * 60 * 24))),
-        status: 'Confirmed (Chờ Check-in)'
-      };
-
-      setMyBookings([newBk, ...myBookings]);
-      setBookingSuccess(true);
-      setTimeout(() => {
-        setBookingSuccess(false);
-        setShowBookingModal(null);
-        setActiveTab('my-stay');
-      }, 1500);
-    } catch (error) {
-      console.error('Booking failed', error);
-      setAuthError(error.response?.data?.message || error.message || 'Đặt phòng không thành công. Vui lòng thử lại.');
-    }
-  };
 
   const handleOrderService = (service) => {
     const newOrd = {
@@ -424,6 +367,17 @@ export default function App() {
     }
   };
 
+  const activeNavTab = activeTab === 'explore' ? 'home'
+    : ['my-stay', 'invoice'].includes(activeTab) ? 'orders'
+      : activeTab === 'service' ? 'checkin'
+        : activeTab;
+
+  const selectNavTab = (tab) => {
+    const destinations = { home: 'explore', orders: 'my-stay', checkin: 'service', account: 'account', more: 'more' };
+    setActiveTab(destinations[tab]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <div className="pwa-container">
       {/* Header */}
@@ -444,15 +398,6 @@ export default function App() {
           </button>
         )}
 
-        <button
-          type="button"
-          className="header-luxbot-btn"
-          onClick={() => setConciergeOpen(true)}
-          aria-label="Mở chatbot LuxBot"
-        >
-          <span>💬</span>
-          <span>LuxBot</span>
-        </button>
       </header>
 
       {/* TAB 1: EXPLORE / SEARCH ROOMS */}
@@ -598,6 +543,10 @@ export default function App() {
             <span>Chuyến Đi Của Tôi</span>
           </div>
 
+          <div className="orders-shortcuts">
+            <button type="button" onClick={() => setActiveTab('invoice')}><ReceiptText size={17} /> Hóa đơn & thanh toán</button>
+          </div>
+
           {myBookings.map(bk => (
             <div key={bk.id} className="stay-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -689,13 +638,51 @@ export default function App() {
         </main>
       )}
 
+      {activeTab === 'account' && (
+        <main className="account-screen">
+          <div className="section-title"><span>Tài khoản</span></div>
+          <section className="account-profile">
+            <div className="account-avatar"><UserRound size={26} /></div>
+            <div className="account-identity">
+              <strong>{user?.full_name || 'Khách LuxStay'}</strong>
+              <span>{user?.email || 'Đăng nhập để quản lý chuyến đi'}</span>
+            </div>
+          </section>
+          {user ? (
+            <>
+              <div className="account-detail-row"><span>Số điện thoại</span><strong>{user.phone || 'Chưa cập nhật'}</strong></div>
+              <button type="button" className="account-action" onClick={clearAuth}><LogOut size={17} /> Đăng xuất</button>
+            </>
+          ) : (
+            <button type="button" className="account-action" onClick={() => { setAuthMode('login'); setAuthModalOpen(true); setAuthError(''); }}>
+              <LogIn size={17} /> Đăng nhập hoặc đăng ký
+            </button>
+          )}
+        </main>
+      )}
+
+      {activeTab === 'more' && (
+        <main className="more-screen">
+          <div className="section-title"><span>Thêm</span></div>
+          <button type="button" className="more-action" onClick={() => setConciergeOpen(true)}>
+            <MessageCircle size={19} /><span><strong>LuxBot Concierge</strong><small>Trợ giúp và gợi ý dịch vụ</small></span>
+          </button>
+          <button type="button" className="more-action" onClick={() => setActiveTab('service')}>
+            <KeyRound size={19} /><span><strong>Dịch vụ lưu trú</strong><small>Ẩm thực, spa và tiện ích tại phòng</small></span>
+          </button>
+          <button type="button" className="more-action" onClick={() => setActiveTab('invoice')}>
+            <ReceiptText size={19} /><span><strong>Hóa đơn</strong><small>Xem chi tiết thanh toán</small></span>
+          </button>
+        </main>
+      )}
+
       {/* MODAL: BOOKING — Multi-step BookingFlow */}
       {showBookingModal && (
         <BookingFlow
           room={showBookingModal}
           user={user}
           bookingForm={bookingForm}
-          onClose={() => { setShowBookingModal(null); setBookingSuccess(false); }}
+          onClose={() => setShowBookingModal(null)}
           onLoginRequest={() => { setShowBookingModal(null); setAuthMode('login'); setAuthModalOpen(true); setAuthError(''); }}
           onConfirm={async ({ contactInfo, bookingMode, totalPrice }) => {
             // Sync contactInfo back into bookingForm state
@@ -860,37 +847,25 @@ export default function App() {
         </div>
       )}
 
-      {/* Bottom Navigation (5 Items according to design-tokens.json) */}
-      <nav className="bottom-nav">
-        <button className={`nav-btn ${activeTab === 'explore' ? 'active' : ''}`} onClick={() => setActiveTab('explore')}>
-          <span className="icon">🏨</span>
-          <span>Khám Phá</span>
+      <button id="luxbot-btn" type="button" onClick={() => setConciergeOpen(true)} aria-label="Mở LuxBot Concierge">
+        <MessageCircle size={17} /> LuxBot
+      </button>
+
+      <nav className="tabbar" aria-label="Điều hướng chính">
+        <button type="button" className={`tab ${activeNavTab === 'home' ? 'active' : ''}`} onClick={() => selectNavTab('home')} aria-current={activeNavTab === 'home' ? 'page' : undefined}>
+          <Home aria-hidden="true" /><span>Trang chủ</span>
         </button>
-        <button className={`nav-btn ${activeTab === 'my-stay' ? 'active' : ''}`} onClick={() => setActiveTab('my-stay')}>
-          <span className="icon">🔑</span>
-          <span>Chuyến Đi</span>
+        <button type="button" className={`tab ${activeNavTab === 'orders' ? 'active' : ''}`} onClick={() => selectNavTab('orders')} aria-current={activeNavTab === 'orders' ? 'page' : undefined}>
+          <ClipboardList aria-hidden="true" /><span>Đơn hàng</span>
         </button>
-        <button className={`nav-btn ${activeTab === 'service' ? 'active' : ''}`} onClick={() => setActiveTab('service')}>
-          <span className="icon">🛎️</span>
-          <span>Dịch Vụ</span>
+        <button type="button" className={`tab ${activeNavTab === 'checkin' ? 'active' : ''}`} onClick={() => selectNavTab('checkin')} aria-current={activeNavTab === 'checkin' ? 'page' : undefined}>
+          <KeyRound aria-hidden="true" /><span>Check in</span>
         </button>
-        <button className={`nav-btn ${activeTab === 'invoice' ? 'active' : ''}`} onClick={() => setActiveTab('invoice')}>
-          <span className="icon">🧾</span>
-          <span>Hóa Đơn</span>
+        <button type="button" className={`tab ${activeNavTab === 'account' ? 'active' : ''}`} onClick={() => selectNavTab('account')} aria-current={activeNavTab === 'account' ? 'page' : undefined}>
+          <UserRound aria-hidden="true" /><span>Tài khoản</span>
         </button>
-        <button
-          className={`nav-btn ${activeTab === 'profile' ? 'active' : ''}`}
-          onClick={() => {
-            if (user) {
-              alert(`Xin chào ${user.full_name || user.email}!`);
-            } else {
-              setAuthMode('login');
-              setAuthModalOpen(true);
-            }
-          }}
-        >
-          <span className="icon">👤</span>
-          <span>Tài Khoản</span>
+        <button type="button" className={`tab ${activeNavTab === 'more' ? 'active' : ''}`} onClick={() => selectNavTab('more')} aria-current={activeNavTab === 'more' ? 'page' : undefined}>
+          <MoreHorizontal aria-hidden="true" /><span>Thêm</span>
         </button>
       </nav>
     </div>

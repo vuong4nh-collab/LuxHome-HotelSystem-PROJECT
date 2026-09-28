@@ -3,9 +3,7 @@ import {
   UserCheck,
   UserX,
   Gift,
-  CreditCard,
   CheckCircle2,
-  ShieldCheck,
   ArrowRight,
   Sparkles,
   Mail,
@@ -15,7 +13,6 @@ import {
   RotateCcw,
   X,
   Smartphone,
-  Building2,
   QrCode,
   Clock,
   RefreshCw,
@@ -31,8 +28,8 @@ const QR_EXPIRY_SECONDS  = 300;           // option1_bankQr.config.qrExpirySecon
 const DEEPLINK_TIMEOUT_MS = 1800;         // option2_ewallet.config.detectionTimeoutMs
 
 const WALLET_CONFIG = {
-  momo:    { label: "MoMo",    icon: "💜", scheme: "momo://",    color: "#A50064", bg: "#F9F0F7" },
-  zalopay: { label: "ZaloPay", icon: "💙", scheme: "zalopay://", color: "#0068FF", bg: "#F0F6FF" },
+  momo:    { label: "MoMo",    icon: "💜", color: "#A50064", bg: "#F9F0F7" },
+  zalopay: { label: "ZaloPay", icon: "💙", color: "#0068FF", bg: "#F0F6FF" },
 };
 
 /* ─────────────────────────────────────────────────────────────
@@ -179,7 +176,6 @@ function QrPaymentPanel({ orderId, amount, onSuccess, onFailed }) {
 function WalletPaymentPanel({ orderId, amount, onSuccess, onFailed }) {
   const [walletState, setWalletState] = useState("choose"); // choose | redirecting | app_not_installed | returned | success | failed
   const [selectedWallet, setSelectedWallet] = useState(null);
-  const [paymentId, setPaymentId] = useState("");
   const [webFallbackUrl, setWebFallbackUrl] = useState("");
   const visListenerRef = useRef(null);
   const timeoutRef    = useRef(null);
@@ -220,7 +216,6 @@ function WalletPaymentPanel({ orderId, amount, onSuccess, onFailed }) {
     try {
       const { data } = await api.post("/payments/wallet", { orderId, amount, wallet });
       const { paymentId: pId, deeplink, webFallbackUrl: fbUrl } = data.data;
-      setPaymentId(pId);
       setWebFallbackUrl(fbUrl);
 
       // Điều hướng deep link theo spec
