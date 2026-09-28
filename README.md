@@ -1,10 +1,10 @@
-# LuxHome Hotel Management System — Plan A Complete Implementation
+# LuxHome Hotel Management System
 
 Hệ thống Quản lý Khách sạn 5 sao toàn diện bao gồm **Backend RESTful API + Socket.IO**, **Staff Web Dashboard**, và **Customer Mobile PWA App**.
 
 ---
 
-## 🌟 Kiến Trúc & Công Nghệ
+##  Kiến Trúc & Công Nghệ
 
 ```
 HotelManagement/
@@ -26,15 +26,21 @@ HotelManagement/
 
 ---
 
-## 🚀 Hướng Dẫn Chạy Nhanh (Quick Start)
+##  Hướng Dẫn Chạy Nhanh (Quick Start)
 
-### Cách 1: Chạy bằng Docker Compose (Khuyên dùng - 1 click)
+### Cách 1: Chạy bằng Docker Compose 
 
 ```bash
-# Clone repository & chuyển vào thư mục dự án
+# 1. Clone repository
+git clone <url_repo>
 cd HotelManagement
 
-# Khởi chạy tất cả container (Database MySQL, Backend API, Staff Web, Customer PWA)
+# 2. Tạo file môi trường từ file mẫu
+cp backend/.env.example backend/.env
+cp frontend/staff-web/.env.example frontend/staff-web/.env
+cp frontend/customer-pwa/.env.example frontend/customer-pwa/.env
+
+# 3. Khởi chạy Docker
 docker-compose up -d --build
 ```
 
@@ -47,33 +53,28 @@ Sau khi các container hoàn tất khởi động:
 
 ### Cách 2: Chạy Thủ Công Không Dùng Docker
 
-#### 1. Cấu hình Database MySQL
-Khởi tạo database `hotel_management` và nạp schema + seed data:
-```bash
+# 1. Cấu hình DB MySQL
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS hotel_management;"
 mysql -u root -p hotel_management < database/schema.sql
 mysql -u root -p hotel_management < database/seed.sql
-```
 
-#### 2. Chạy Backend Node.js API
-```bash
+# 2. Chạy Backend API (Cửa sổ Terminal 1)
 cd backend
-npm install
+npm install   # 👈 Bổ sung lệnh này
+cp .env.example .env
 npm run dev
-```
 
-#### 3. Chạy Staff Web Frontend
-```bash
+# 3. Chạy Staff Web (Cửa sổ Terminal 2)
 cd frontend/staff-web
-npm install
+npm install   # 👈 Bổ sung lệnh này
+cp .env.example .env
 npm run dev
-```
 
-#### 4. Chạy Customer PWA Frontend
-```bash
+# 4. Chạy Customer PWA (Cửa sổ Terminal 3)
 cd frontend/customer-pwa
-npm install
+npm install   # 👈 Bổ sung lệnh này
+cp .env.example .env
 npm run dev
-```
 
 ---
 
