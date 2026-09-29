@@ -17,6 +17,8 @@ services:
       - db_data:/var/lib/mysql
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+      - ./database/migrations/002_hotel_search_demo_rooms.sql:/docker-entrypoint-initdb.d/03-hotel-search-demo-rooms.sql
+      - ./database/migrations/002_hotel_search_demo_rooms.sql:/docker-entrypoint-initdb.d/03-hotel-search-demo-rooms.sql
     networks:
       - hotel_net
     healthcheck:

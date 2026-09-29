@@ -47,6 +47,7 @@ const createBooking = async (req, res, next) => {
     const {
       customer_id,
       room_id,
+      hotel_branch_id,
       checkin_date,
       checkout_date,
       num_guests,
@@ -111,6 +112,7 @@ const createBooking = async (req, res, next) => {
 
     const booking = await Booking.create({
       customer_id: targetCustomerId,
+      hotel_branch_id: hotel_branch_id || room.hotel_branch_id,
       room_id,
       checkin_date,
       checkout_date,

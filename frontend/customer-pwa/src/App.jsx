@@ -13,6 +13,113 @@ const getDateInputValue = (offsetDays = 0, fromDate = new Date()) => {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 };
 
+const POPULAR_DESTINATIONS = [
+  { city: 'Phú Quốc', areas: ['Bãi Dài', 'Dương Đông', 'Ông Lang', 'Gành Dầu', 'An Thới'] },
+  { city: 'Nha Trang', areas: ['Trung tâm Nha Trang', 'Bãi biển Trần Phú', 'Hòn Tre', 'Vĩnh Hải'] },
+  { city: 'Đà Nẵng', areas: ['Mỹ Khê', 'An Thượng', 'Sơn Trà', 'Bà Nà Hills'] },
+  { city: 'Hà Nội', areas: ['Hoàn Kiếm', 'Ba Đình', 'Tây Hồ', 'Cầu Giấy'] },
+  { city: 'TP.HCM', areas: ['Quận 1', 'Thảo Điền', 'Phú Nhuận', 'Quận 7'] },
+];
+
+const DEMO_HOTELS = [
+  {
+    id: 901,
+    name: 'LuxHome Hanoi Heritage',
+    city: 'Hà Nội',
+    address: '18 Hàng Bông, Hoàn Kiếm',
+    star_rating: 5,
+    average_rating: 4.8,
+    review_count: 326,
+    status: 'Active',
+    description: 'Khách sạn boutique giữa khu phố cổ, thuận tiện khám phá Hồ Gươm và các điểm di sản.',
+    image_url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=85',
+    isDemoSample: true,
+    branches: [{ id: 9001, hotel_id: 901, name: 'Hanoi Heritage', city: 'Hà Nội', address: '18 Hàng Bông, Hoàn Kiếm', latitude: 21.031, longitude: 105.849 }],
+    sampleRooms: [{ id: 99001, hotel_branch_id: 9001, name: 'Deluxe Old Quarter View', category: 'Deluxe', price: 2200000, image: 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=1000&q=85', amenities: ['Wi-Fi', 'View phố cổ', 'Bữa sáng'], rating: 4.8, roomNumber: '501', floor: 5 }],
+  },
+  {
+    id: 902,
+    name: 'LuxHome Da Nang Beachfront',
+    city: 'Đà Nẵng',
+    address: '92 Võ Nguyên Giáp, Sơn Trà',
+    star_rating: 5,
+    average_rating: 4.9,
+    review_count: 492,
+    status: 'Active',
+    description: 'Khu nghỉ dưỡng ven biển với hồ bơi ngoài trời và tầm nhìn hướng biển Mỹ Khê.',
+    image_url: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1200&q=85',
+    isDemoSample: true,
+    branches: [{ id: 9002, hotel_id: 902, name: 'Da Nang Beachfront', city: 'Đà Nẵng', address: '92 Võ Nguyên Giáp, Sơn Trà', latitude: 16.061, longitude: 108.246 }],
+    sampleRooms: [{ id: 99002, hotel_branch_id: 9002, name: 'Premier Ocean View', category: 'Premier', price: 1850000, image: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1000&q=85', amenities: ['View biển', 'Wi-Fi', 'Hồ bơi'], rating: 4.9, roomNumber: '608', floor: 6 }],
+  },
+  {
+    id: 903,
+    name: 'LuxHome Saigon Riverside',
+    city: 'TP.HCM',
+    address: '12 Tôn Đức Thắng, Quận 1',
+    star_rating: 4,
+    average_rating: 4.6,
+    review_count: 208,
+    status: 'Active',
+    description: 'Khách sạn thành thị bên sông Sài Gòn, gần phố đi bộ Nguyễn Huệ.',
+    image_url: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=85',
+    isDemoSample: true,
+    branches: [{ id: 9003, hotel_id: 903, name: 'Saigon Riverside', city: 'TP.HCM', address: '12 Tôn Đức Thắng, Quận 1', latitude: 10.778, longitude: 106.706 }],
+    sampleRooms: [{ id: 99003, hotel_branch_id: 9003, name: 'Executive River View', category: 'Executive', price: 1450000, image: 'https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&w=1000&q=85', amenities: ['View sông', 'Wi-Fi', 'Phòng gym'], rating: 4.6, roomNumber: '1205', floor: 12 }],
+  },
+  {
+    id: 904,
+    name: 'LuxHome Pearl Island Resort',
+    city: 'Phú Quốc',
+    address: 'Bãi Dài, Gành Dầu, Phú Quốc',
+    star_rating: 5,
+    average_rating: 4.8,
+    review_count: 188,
+    status: 'Active',
+    description: 'Khu nghỉ dưỡng nhiệt đới gần Bãi Dài với villa hướng vườn và bãi biển riêng.',
+    image_url: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1200&q=85',
+    isDemoSample: true,
+    branches: [{ id: 9004, hotel_id: 904, name: 'Pearl Island Resort', city: 'Phú Quốc', address: 'Bãi Dài, Gành Dầu, Phú Quốc', latitude: 10.338, longitude: 103.886 }],
+    sampleRooms: [{ id: 99004, hotel_branch_id: 9004, name: 'Garden Villa', category: 'Villa', price: 2650000, image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1000&q=85', amenities: ['Vườn riêng', 'Wi-Fi', 'Bãi biển riêng'], rating: 4.8, roomNumber: 'V12', floor: 1 }],
+  },
+];
+
+const DEMO_BRANCHES = DEMO_HOTELS.flatMap((hotel) => hotel.branches.map((branch) => ({ ...branch, hotel })));
+const DEMO_HOTEL_DIRECTORY = DEMO_HOTELS.map(({ sampleRooms, ...hotel }) => hotel);
+
+const normalizePlace = (value) => String(value || '')
+  .normalize('NFD')
+  .replace(/[\u0300-\u036f]/g, '')
+  .replace(/đ/g, 'd')
+  .replace(/Đ/g, 'D')
+  .trim()
+  .toLocaleLowerCase('vi');
+
+const mapAvailableRoom = (room) => {
+  const roomType = room.roomType || {};
+  let amenities = [];
+  try {
+    amenities = Array.isArray(roomType.amenities)
+      ? roomType.amenities
+      : JSON.parse(roomType.amenities || '[]');
+  } catch {
+    amenities = [];
+  }
+
+  return {
+    id: room.id,
+    hotel_branch_id: room.hotel_branch_id,
+    name: `${roomType.name || 'Phòng'} ${room.room_number}`,
+    category: roomType.name || 'Standard',
+    price: Number(roomType.base_price || room.price || 0),
+    image: room.image_url || roomType.image_url || 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=1000&q=85',
+    amenities: amenities.length ? amenities.slice(0, 4) : ['Wi-Fi', 'View', 'Air Conditioning'],
+    rating: 4.8,
+    roomNumber: room.room_number,
+    floor: room.floor,
+  };
+};
+
 const getStoredUser = () => {
   try {
     const raw = localStorage.getItem(USER_STORAGE_KEY);
@@ -39,9 +146,22 @@ export default function App() {
   const [conciergeOpen, setConciergeOpen] = useState(false);
   const [homeNotice, setHomeNotice] = useState('');
   const [showBookingModal, setShowBookingModal] = useState(null);
-  const [branches, setBranches] = useState([]);
+  const [branches, setBranches] = useState(() => import.meta.env.DEV ? DEMO_BRANCHES : []);
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [hotelDestination, setHotelDestination] = useState('');
+  const [selectedDestinationCity, setSelectedDestinationCity] = useState('');
+  const [selectedHotelId, setSelectedHotelId] = useState('');
+  const [destinationPickerOpen, setDestinationPickerOpen] = useState(false);
+  const [destinationSearch, setDestinationSearch] = useState('');
+  const [hotelDirectory, setHotelDirectory] = useState(() => import.meta.env.DEV ? DEMO_HOTEL_DIRECTORY : []);
+  const [hotelResults, setHotelResults] = useState([]);
+  const [selectedHotel, setSelectedHotel] = useState(null);
+  const [hotelsLoading, setHotelsLoading] = useState(false);
+  const [hotelSearchError, setHotelSearchError] = useState('');
+  const [hotelFilterOpen, setHotelFilterOpen] = useState(false);
+  const [minimumStars, setMinimumStars] = useState(0);
+  const [maximumPrice, setMaximumPrice] = useState(10000000);
+  const [mapOpen, setMapOpen] = useState(false);
   const [hotelGuestCounts, setHotelGuestCounts] = useState({ rooms: 1, adults: 2, children: 0, infants: 0 });
   const [guestExpanded, setGuestExpanded] = useState(false);
   const [promoCode, setPromoCode] = useState('');
@@ -63,14 +183,19 @@ export default function App() {
     Number(value || 0).toLocaleString('vi-VN', { maximumFractionDigits: 0 }) + ' đ';
 
   const refreshBranchOptions = async () => {
+    if (import.meta.env.DEV) {
+      setBranches(DEMO_BRANCHES);
+      setHotelDirectory(DEMO_HOTEL_DIRECTORY);
+      return;
+    }
+
     try {
       const { data } = await api.get('/hotels/branches');
       const list = data?.data || [];
       setBranches(list);
-      if (list.length && !selectedBranchId) {
-        setSelectedBranchId(String(list[0].id));
-        setHotelDestination(`${list[0].name} · ${list[0].city}`);
-      }
+      const hotels = [...new Map(list.filter((branch) => branch.hotel?.id)
+        .map((branch) => [String(branch.hotel.id), branch.hotel])).values()];
+      setHotelDirectory(hotels);
     } catch (error) {
       console.error('Failed to load branches', error);
     }
@@ -92,26 +217,7 @@ export default function App() {
       if (branchId) params.hotel_branch_id = branchId;
 
       const { data } = await api.get('/rooms/available', { params });
-      const rooms = (data?.data || []).map((room) => {
-        const roomType = room.roomType || {};
-        const price = Number(roomType.base_price || room.price || 0);
-        const amenities = Array.isArray(roomType.amenities)
-          ? roomType.amenities
-          : (typeof roomType.amenities === 'string' ? JSON.parse(roomType.amenities || '[]') : []);
-
-        return {
-          id: room.id,
-          hotel_branch_id: room.hotel_branch_id,
-          name: `${roomType.name || 'Phòng'} ${room.room_number}`,
-          category: roomType.name || 'Standard',
-          price,
-          image: room.image_url || roomType.image_url || 'https://images.unsplash.com/photo-1566665797739-1674de7a421a?auto=format&fit=crop&w=600&q=80',
-          amenities: amenities.length ? amenities.slice(0, 4) : ['Wi-Fi', 'View', 'Air Conditioning'],
-          rating: 4.8,
-          roomNumber: room.room_number,
-          floor: room.floor,
-        };
-      });
+      const rooms = (data?.data || []).map(mapAvailableRoom);
 
       setAvailableRooms(rooms);
     } catch (error) {
@@ -121,6 +227,17 @@ export default function App() {
     } finally {
       setRoomsLoading(false);
     }
+  };
+
+  const fetchAvailableRoomsForBranch = async (branchId) => {
+    const params = {
+      checkin_date: bookingForm.checkIn,
+      checkout_date: bookingForm.checkOut,
+      num_guests: Math.max(1, hotelGuestCounts.adults + hotelGuestCounts.children),
+      hotel_branch_id: branchId,
+    };
+    const { data } = await api.get('/rooms/available', { params });
+    return (data?.data || []).map(mapAvailableRoom);
   };
 
   const persistAuth = (token, userData) => {
@@ -208,9 +325,99 @@ export default function App() {
 
   useEffect(() => {
     if (activeTab !== 'hotel-results') return;
-    const guests = Math.max(1, hotelGuestCounts.adults + hotelGuestCounts.children);
-    loadAvailableRooms(selectedBranchId, bookingForm.checkIn, bookingForm.checkOut, guests);
-  }, [activeTab]);
+    let isCurrentSearch = true;
+
+    const searchHotels = async () => {
+      setHotelsLoading(true);
+      setHotelSearchError('');
+      setHotelResults([]);
+
+      try {
+        let hotels;
+        if (import.meta.env.DEV) {
+          hotels = DEMO_HOTELS;
+        } else {
+          const params = selectedDestinationCity ? { city: selectedDestinationCity } : {};
+          const { data } = await api.get('/hotels/hotels', { params });
+          hotels = data?.data || [];
+        }
+        if (selectedDestinationCity) {
+          const destination = normalizePlace(selectedDestinationCity);
+          hotels = hotels.filter((hotel) => normalizePlace(hotel.city) === destination
+            || hotel.branches?.some((branch) => normalizePlace(branch.city) === destination));
+        }
+        if (selectedHotelId) hotels = hotels.filter((hotel) => String(hotel.id) === selectedHotelId);
+        hotels = hotels.filter((hotel) => !hotel.status || hotel.status === 'Active');
+
+        const results = await Promise.all(hotels.map(async (hotel) => {
+          const hotelBranches = (hotel.branches || branches.filter((branch) => String(branch.hotel_id) === String(hotel.id)))
+            .filter((branch) => !selectedDestinationCity || normalizePlace(branch.city) === normalizePlace(selectedDestinationCity));
+          const branchResults = hotel.isDemoSample
+            ? hotelBranches.map((branch) => ({
+                branch,
+                rooms: hotel.sampleRooms.map((room) => ({ ...room, hotel_branch_id: branch.id })),
+              }))
+            : await Promise.all(hotelBranches.map(async (branch) => {
+                try {
+                  return { branch, rooms: await fetchAvailableRoomsForBranch(branch.id) };
+                } catch {
+                  return { branch, rooms: [] };
+                }
+              }));
+          const rooms = branchResults.flatMap(({ branch, rooms: branchRooms }) => branchRooms.map((room) => ({
+            ...room,
+            hotel_branch_id: room.hotel_branch_id || branch.id,
+          })));
+          const prices = rooms.map((room) => room.price).filter((price) => price > 0);
+          const firstBranch = hotelBranches[0];
+
+          return {
+            ...hotel,
+            branches: hotelBranches,
+            rooms,
+            startingPrice: prices.length ? Math.min(...prices) : 0,
+            heroImage: hotel.image_url || rooms[0]?.image || 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=85',
+            displayAddress: hotel.address || firstBranch?.address || hotel.city,
+            rating: Number(hotel.average_rating || hotel.star_rating || 0),
+            reviewCount: Number(hotel.review_count || hotel.rating_count || 0),
+            latitude: firstBranch?.latitude,
+            longitude: firstBranch?.longitude,
+          };
+        }));
+
+        if (isCurrentSearch) setHotelResults(results);
+      } catch (error) {
+        if (isCurrentSearch) {
+          if (import.meta.env.DEV) {
+            const samples = DEMO_HOTELS
+              .filter((hotel) => !selectedDestinationCity || normalizePlace(hotel.city) === normalizePlace(selectedDestinationCity))
+              .filter((hotel) => !selectedHotelId || String(hotel.id) === selectedHotelId)
+              .map((hotel) => ({
+                ...hotel,
+                rooms: hotel.sampleRooms,
+                startingPrice: Math.min(...hotel.sampleRooms.map((room) => room.price)),
+                heroImage: hotel.image_url,
+                displayAddress: hotel.address,
+                rating: hotel.average_rating,
+                reviewCount: hotel.review_count,
+                latitude: hotel.branches[0]?.latitude,
+                longitude: hotel.branches[0]?.longitude,
+              }));
+            setHotelResults(samples);
+            setHotelSearchError('');
+          } else {
+            setHotelResults([]);
+            setHotelSearchError(error.response?.data?.message || 'Không thể tải danh sách khách sạn lúc này.');
+          }
+        }
+      } finally {
+        if (isCurrentSearch) setHotelsLoading(false);
+      }
+    };
+
+    searchHotels();
+    return () => { isCurrentSearch = false; };
+  }, [activeTab, selectedDestinationCity, selectedHotelId, bookingForm.checkIn, bookingForm.checkOut, hotelGuestCounts.adults, hotelGuestCounts.children]);
 
   useEffect(() => {
     if (!user) return;
@@ -354,13 +561,42 @@ export default function App() {
       : 'Dịch vụ thuê xe sẽ sớm có mặt trên LuxHome.');
   };
 
-  const handleDestinationChange = (value) => {
-    setHotelDestination(value);
-    const normalizedValue = value.trim().toLocaleLowerCase('vi');
-    const branch = branches.find((item) => [item.city, item.name, `${item.name} · ${item.city}`]
-      .some((label) => label?.trim().toLocaleLowerCase('vi') === normalizedValue));
-    setSelectedBranchId(branch ? String(branch.id) : '');
+  const openDestinationPicker = () => {
+    setDestinationSearch('');
+    setDestinationPickerOpen(true);
   };
+
+  const selectDestination = ({ label, city, hotelId }) => {
+    const normalizedCity = normalizePlace(city);
+    const matchedHotel = hotelId
+      ? hotelDirectory.find((hotel) => String(hotel.id) === String(hotelId))
+      : null;
+    const matchedBranch = branches.find((branch) => matchedHotel
+      ? String(branch.hotel_id) === String(matchedHotel.id)
+      : normalizePlace(branch.city) === normalizedCity);
+
+    setHotelDestination(label);
+    setSelectedDestinationCity(matchedHotel?.city || matchedBranch?.city || city);
+    setSelectedHotelId(matchedHotel ? String(matchedHotel.id) : '');
+    setSelectedBranchId(matchedBranch ? String(matchedBranch.id) : '');
+    setDestinationSearch('');
+    setDestinationPickerOpen(false);
+  };
+
+  const normalizedDestinationSearch = normalizePlace(destinationSearch);
+  const filteredDestinationGroups = POPULAR_DESTINATIONS.map((destination) => ({
+    ...destination,
+    areas: destination.areas.filter((area) => !normalizedDestinationSearch
+      || normalizePlace(area).includes(normalizedDestinationSearch)
+      || normalizePlace(destination.city).includes(normalizedDestinationSearch)),
+  })).filter((destination) => !normalizedDestinationSearch
+    || normalizePlace(destination.city).includes(normalizedDestinationSearch)
+    || destination.areas.length > 0);
+
+  const matchingHotels = normalizedDestinationSearch
+    ? hotelDirectory.filter((hotel) => [hotel.name, hotel.city, hotel.address]
+      .some((value) => normalizePlace(value).includes(normalizedDestinationSearch)))
+    : [];
 
   const updateGuestCount = (key, delta) => {
     const next = {
@@ -373,12 +609,34 @@ export default function App() {
 
   const handleHotelSearch = (event) => {
     event.preventDefault();
+    if (!selectedDestinationCity) {
+      setHotelSearchError('Hãy chọn một điểm đến trước khi tìm khách sạn.');
+      setDestinationPickerOpen(true);
+      return;
+    }
     if (bookingForm.checkOut <= bookingForm.checkIn) {
       setRoomsError('Ngày trả phòng phải sau ngày nhận phòng.');
       return;
     }
     setRoomsError('');
+    setHotelSearchError('');
+    setAvailableRooms([]);
+    setSelectedHotel(null);
     setActiveTab('hotel-results');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const filteredHotelResults = hotelResults.filter((hotel) => {
+    const matchesStars = !minimumStars || Number(hotel.star_rating || 0) >= minimumStars;
+    const matchesPrice = !hotel.startingPrice || hotel.startingPrice <= maximumPrice;
+    return matchesStars && matchesPrice;
+  });
+
+  const openHotelDetail = (hotel) => {
+    setSelectedHotel(hotel);
+    setAvailableRooms(hotel.rooms || []);
+    setSelectedBranchId(String(hotel.branches?.[0]?.id || ''));
+    setActiveTab('hotel-detail');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -433,6 +691,7 @@ export default function App() {
     : ['my-stay', 'invoice'].includes(activeTab) ? 'orders'
       : activeTab === 'service' ? 'checkin'
         : activeTab;
+  const isHotelFlow = ['hotel', 'hotel-results', 'hotel-detail'].includes(activeTab);
 
   const selectNavTab = (tab) => {
     const destinations = { home: 'explore', orders: 'my-stay', checkin: 'service', account: 'account', more: 'more' };
@@ -441,8 +700,8 @@ export default function App() {
   };
 
   return (
-    <div className={`pwa-container ${['hotel', 'hotel-results'].includes(activeTab) ? 'hotel-flow-active' : ''}`}>
-      { !['hotel', 'hotel-results'].includes(activeTab) && <header className={`pwa-header ${activeTab === 'explore' ? 'pwa-header-home' : ''}`}>
+    <div className={`pwa-container ${isHotelFlow ? 'hotel-flow-active' : ''}`}>
+      {!isHotelFlow && <header className={`pwa-header ${activeTab === 'explore' ? 'pwa-header-home' : ''}`}>
         <div className="brand-logo">
           <span className="crown-icon">👋</span>
           <div className="brand-copy">
@@ -520,25 +779,12 @@ export default function App() {
               <span className="hotel-search-header-spacer" aria-hidden="true" />
             </header>
 
-            <label className="hotel-location-field">
-              <input
-                type="search"
-                list="hotel-destinations"
-                placeholder="Tìm địa điểm - khách sạn"
-                value={hotelDestination}
-                onChange={(event) => handleDestinationChange(event.target.value)}
-                aria-label="Tìm địa điểm hoặc khách sạn"
-              />
-              <datalist id="hotel-destinations">
-                {branches.map((branch) => (
-                  <option key={branch.id} value={`${branch.name} · ${branch.city}`} />
-                ))}
-                {[...new Set(branches.map((branch) => branch.city).filter(Boolean))].map((city) => (
-                  <option key={city} value={city} />
-                ))}
-              </datalist>
+            <button type="button" className="hotel-location-field" onClick={openDestinationPicker} aria-label="Chọn địa điểm">
+              <span className={hotelDestination ? 'has-destination' : ''}>
+                {hotelDestination || 'Tìm địa điểm hoặc khách sạn'}
+              </span>
               <Search size={20} aria-hidden="true" />
-            </label>
+            </button>
 
             <section className="hotel-detail-card hotel-date-card" aria-label="Ngày lưu trú">
               <CalendarDays className="hotel-detail-icon" size={21} aria-hidden="true" />
@@ -631,10 +877,72 @@ export default function App() {
               )}
             </section>
 
-            {roomsError && <p className="hotel-form-error" role="alert">{roomsError}</p>}
+            {(hotelSearchError || roomsError) && <p className="hotel-form-error" role="alert">{hotelSearchError || roomsError}</p>}
             <button type="submit" className="hotel-search-button">Tìm kiếm</button>
           </form>
         </main>
+      )}
+
+      {destinationPickerOpen && activeTab === 'hotel' && (
+        <section className="destination-picker-overlay" aria-label="Chọn điểm đến">
+          <header className="hotel-search-header">
+            <button type="button" className="hotel-search-back" onClick={() => setDestinationPickerOpen(false)} aria-label="Quay lại tìm kiếm">
+              <ArrowLeft size={21} />
+            </button>
+            <h1>Chọn điểm đến</h1>
+            <span className="hotel-search-header-spacer" aria-hidden="true" />
+          </header>
+          <label className="destination-picker-search">
+            <Search size={18} aria-hidden="true" />
+            <input
+              autoFocus
+              type="search"
+              placeholder="Tìm địa điểm, khu vực hoặc khách sạn"
+              value={destinationSearch}
+              onChange={(event) => setDestinationSearch(event.target.value)}
+              aria-label="Tìm địa điểm, khu vực hoặc khách sạn"
+            />
+          </label>
+          <div className="destination-picker-list">
+            <p className="destination-picker-kicker">
+              {normalizedDestinationSearch ? 'ĐỊA ĐIỂM VÀ KHU VỰC' : 'ĐỊA ĐIỂM NỔI TIẾNG'}
+            </p>
+            {filteredDestinationGroups.map((destination) => (
+              <section className="destination-picker-group" key={destination.city}>
+                <button type="button" className="destination-city-option" onClick={() => selectDestination({ label: destination.city, city: destination.city })}>
+                  <MapPin size={17} aria-hidden="true" />
+                  <span>{destination.city}</span>
+                  <ArrowRight size={16} aria-hidden="true" />
+                </button>
+                {destination.areas.length > 0 && (
+                  <div className="destination-area-options">
+                    {destination.areas.map((area) => (
+                      <button type="button" key={area} onClick={() => selectDestination({ label: `${area}, ${destination.city}`, city: destination.city })}>
+                        {area}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))}
+
+            {matchingHotels.length > 0 && (
+              <section className="destination-hotel-suggestions">
+                <p className="destination-picker-kicker">KHÁCH SẠN PHÙ HỢP</p>
+                {matchingHotels.map((hotel) => (
+                  <button type="button" className="destination-hotel-option" key={hotel.id} onClick={() => selectDestination({ label: hotel.name, city: hotel.city, hotelId: hotel.id })}>
+                    <span className="destination-hotel-icon">⌂</span>
+                    <span><strong>{hotel.name}</strong><small>{hotel.city}{hotel.address ? ` · ${hotel.address}` : ''}</small></span>
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </button>
+                ))}
+              </section>
+            )}
+            {normalizedDestinationSearch && filteredDestinationGroups.length === 0 && matchingHotels.length === 0 && (
+              <p className="destination-no-results">Không tìm thấy địa điểm hoặc khách sạn phù hợp.</p>
+            )}
+          </div>
+        </section>
       )}
 
       {activeTab === 'hotel-results' && (
@@ -643,40 +951,121 @@ export default function App() {
             <button type="button" className="hotel-search-back" onClick={() => setActiveTab('hotel')} aria-label="Sửa tìm kiếm">
               <ArrowLeft size={21} />
             </button>
-            <h1>Khách sạn phù hợp</h1>
+            <h1>Kết quả khách sạn</h1>
             <button type="button" className="hotel-results-edit" onClick={() => setActiveTab('hotel')}>Sửa</button>
           </header>
-          <p className="hotel-results-summary">
-            {hotelDestination} · {formatStayDate(bookingForm.checkIn).day} {formatStayDate(bookingForm.checkIn).month} – {formatStayDate(bookingForm.checkOut).day} {formatStayDate(bookingForm.checkOut).monthYear}
-          </p>
-          {roomsLoading ? (
+          <div className="hotel-search-summary-grid">
+            <div><span>Điểm đến</span><strong>{hotelDestination || selectedDestinationCity}</strong></div>
+            <div><span>Ngày</span><strong>{formatStayDate(bookingForm.checkIn).day}/{new Date(`${bookingForm.checkIn}T00:00:00`).getMonth() + 1}–{formatStayDate(bookingForm.checkOut).day}/{new Date(`${bookingForm.checkOut}T00:00:00`).getMonth() + 1}</strong></div>
+            <div><span>Phòng</span><strong>{hotelGuestCounts.rooms}</strong></div>
+            <div><span>Khách</span><strong>{hotelGuestCounts.adults + hotelGuestCounts.children}</strong></div>
+          </div>
+
+          <div className="hotel-result-tools">
+            <button type="button" onClick={() => setMapOpen(true)}><MapPin size={16} /> Bản đồ</button>
+            <button type="button" onClick={() => setHotelFilterOpen(true)}><span aria-hidden="true">⚙</span> Bộ lọc</button>
+            <span>{filteredHotelResults.length} khách sạn</span>
+          </div>
+
+          {hotelsLoading ? (
             <div className="rooms-empty">Đang tìm khách sạn phù hợp...</div>
-          ) : roomsError ? (
-            <div className="rooms-error" role="alert">{roomsError}</div>
-          ) : availableRooms.length === 0 ? (
+          ) : hotelSearchError ? (
+            <div className="rooms-error" role="alert">{hotelSearchError}</div>
+          ) : filteredHotelResults.length === 0 ? (
             <div className="rooms-empty">Không tìm thấy khách sạn phù hợp với lựa chọn này.</div>
           ) : (
-            <div className="room-list hotel-results-list">
-              {availableRooms.map((room) => (
+            <div className="hotel-results-list">
+              {filteredHotelResults.map((hotel) => (
+                <article className="hotel-result-card" key={hotel.id}>
+                  <button type="button" className="hotel-result-main" onClick={() => openHotelDetail(hotel)}>
+                    <img className="hotel-result-image" src={hotel.heroImage} alt={hotel.name} />
+                    <span className="hotel-result-content">
+                      <strong className="hotel-result-name">{hotel.name}</strong>
+                      <span className="hotel-result-address"><MapPin size={13} /> {hotel.displayAddress}</span>
+                      <span className="hotel-result-rating">
+                        <span>{'★'.repeat(Math.max(0, Math.min(5, Number(hotel.star_rating || 0))))}</span>
+                        {hotel.average_rating ? `${Number(hotel.average_rating).toFixed(1)} / 5` : `${hotel.star_rating || 0} sao`}
+                        <small>{hotel.reviewCount ? `${hotel.reviewCount} đánh giá` : 'Chưa có đánh giá'}</small>
+                      </span>
+                      <span className="hotel-result-price">
+                        {hotel.startingPrice ? <>{formatCurrency(hotel.startingPrice)} <small>/ đêm</small></> : 'Chưa có giá phòng'}
+                      </span>
+                    </span>
+                    <ArrowRight className="hotel-result-arrow" size={18} />
+                  </button>
+                  <button type="button" className="hotel-result-detail-link" onClick={() => openHotelDetail(hotel)}>Xem chi tiết</button>
+                </article>
+              ))}
+            </div>
+          )}
+
+          {hotelFilterOpen && (
+            <div className="hotel-overlay" role="presentation" onClick={(event) => event.target === event.currentTarget && setHotelFilterOpen(false)}>
+              <section className="hotel-filter-sheet" role="dialog" aria-modal="true" aria-label="Bộ lọc khách sạn">
+                <header><h2>Bộ lọc</h2><button type="button" onClick={() => setHotelFilterOpen(false)} aria-label="Đóng bộ lọc">×</button></header>
+                <label className="hotel-filter-price">
+                  <span>Giá tối đa mỗi đêm</span>
+                  <strong>{formatCurrency(maximumPrice)}</strong>
+                  <input type="range" min="500000" max="10000000" step="250000" value={maximumPrice} onChange={(event) => setMaximumPrice(Number(event.target.value))} />
+                </label>
+                <div className="hotel-filter-stars">
+                  <span>Hạng sao tối thiểu</span>
+                  <div>{[0, 3, 4, 5].map((stars) => (
+                    <button type="button" className={minimumStars === stars ? 'active' : ''} key={stars} onClick={() => setMinimumStars(stars)}>
+                      {stars ? `${stars}+ sao` : 'Tất cả'}
+                    </button>
+                  ))}</div>
+                </div>
+                <button type="button" className="hotel-filter-apply" onClick={() => setHotelFilterOpen(false)}>Xem {filteredHotelResults.length} khách sạn</button>
+              </section>
+            </div>
+          )}
+
+          {mapOpen && (
+            <div className="hotel-overlay" role="presentation" onClick={(event) => event.target === event.currentTarget && setMapOpen(false)}>
+              <section className="hotel-map-sheet" role="dialog" aria-modal="true" aria-label="Bản đồ khách sạn">
+                <header><h2>Bản đồ · {selectedDestinationCity}</h2><button type="button" onClick={() => setMapOpen(false)} aria-label="Đóng bản đồ">×</button></header>
+                <iframe title={`Bản đồ ${selectedDestinationCity}`} src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedDestinationCity)}&output=embed`} loading="lazy" />
+              </section>
+            </div>
+          )}
+        </main>
+      )}
+
+      {activeTab === 'hotel-detail' && selectedHotel && (
+        <main className="hotel-detail-screen">
+          <header className="hotel-search-header hotel-results-header">
+            <button type="button" className="hotel-search-back" onClick={() => setActiveTab('hotel-results')} aria-label="Quay lại kết quả">
+              <ArrowLeft size={21} />
+            </button>
+            <h1>Chi tiết khách sạn</h1>
+            <span className="hotel-search-header-spacer" />
+          </header>
+          <img className="hotel-detail-hero" src={selectedHotel.heroImage} alt={selectedHotel.name} />
+          <section className="hotel-detail-info">
+            <h2>{selectedHotel.name}</h2>
+            <p><MapPin size={15} /> {selectedHotel.displayAddress}</p>
+            <div className="hotel-result-rating"><span>{'★'.repeat(Math.max(0, Math.min(5, Number(selectedHotel.star_rating || 0))))}</span> {selectedHotel.star_rating || 0} sao <small>{selectedHotel.reviewCount ? `${selectedHotel.reviewCount} đánh giá` : 'Chưa có đánh giá'}</small></div>
+            {selectedHotel.description && <p className="hotel-detail-description">{selectedHotel.description}</p>}
+          </section>
+          <div className="hotel-detail-rooms-heading"><h2>Phòng còn trống</h2><span>{selectedHotel.rooms?.length || 0} phòng</span></div>
+          {selectedHotel.rooms?.length ? (
+            <div className="room-list hotel-detail-room-list">
+              {selectedHotel.rooms.map((room) => (
                 <article key={room.id} className="pwa-room-card">
-                  <div className="room-img-wrapper" style={{ backgroundImage: `url(${room.image})` }}>
-                    <div className="room-badge">Tầng {room.floor || 1} · {room.category}</div>
-                    <div className="room-rating-pill">★ {room.rating}</div>
-                  </div>
+                  <div className="room-img-wrapper" style={{ backgroundImage: `url(${room.image})` }}><div className="room-badge">{room.category}</div></div>
                   <div className="room-card-info">
-                    <h2>{room.name}</h2>
-                    <div className="room-amenities">
-                      {room.amenities.map((amenity, index) => <span key={index}>✓ {amenity}</span>)}
-                    </div>
+                    <h3>{room.name}</h3>
+                    <div className="room-amenities">{room.amenities.map((amenity, index) => <span key={index}>✓ {amenity}</span>)}</div>
                     <div className="room-price-row">
                       <div className="price-text">{formatCurrency(room.price)} <span>/đêm</span></div>
-                      <button type="button" className="btn-book" onClick={() => setShowBookingModal(room)}>Đặt phòng</button>
+                      <button type="button" className="btn-book" onClick={() => { setSelectedBranchId(String(room.hotel_branch_id)); setShowBookingModal(room); }}>Đặt phòng</button>
                     </div>
                   </div>
                 </article>
               ))}
             </div>
-          )}
+          ) : <div className="rooms-empty">Không có phòng trống phù hợp trong thời gian này.</div>}
         </main>
       )}
 
@@ -882,7 +1271,7 @@ export default function App() {
         />
       )}
 
-      {!['hotel', 'hotel-results'].includes(activeTab) && (
+      {!isHotelFlow && (
         <ConciergeChat
           open={conciergeOpen}
           onOpenChange={setConciergeOpen}
@@ -993,7 +1382,7 @@ export default function App() {
         </div>
       )}
 
-      {!['hotel', 'hotel-results'].includes(activeTab) && <nav className="tabbar" aria-label="Điều hướng chính">
+      {!isHotelFlow && <nav className="tabbar" aria-label="Điều hướng chính">
         <button type="button" className={`tab ${activeNavTab === 'home' ? 'active' : ''}`} onClick={() => selectNavTab('home')} aria-current={activeNavTab === 'home' ? 'page' : undefined}>
           <Home aria-hidden="true" /><span>Trang chủ</span>
         </button>

@@ -125,24 +125,42 @@ app.use(errorHandler);
 
 // ── Database connection & server start ───────────────────────
 const PORT = process.env.PORT || 5000;
+const DB_RETRY_DELAY_MS = 3000;
+const RETRYABLE_DB_ERRORS = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  'ENOTFOUND',
+]);
 
 const startServer = async () => {
-  try {
-    await sequelize.authenticate();
-    console.log('✅ Database connection established');
+  while (true) {
+    try {
+      await sequelize.authenticate();
+      break;
+    } catch (err) {
+      const code = err.original?.code || err.parent?.code || err.code;
+      if (!RETRYABLE_DB_ERRORS.has(code)) {
+        console.error('❌ Failed to start server:', err);
+        process.exit(1);
+      }
 
-    // Sync models (do NOT use force:true in production!)
-    // await sequelize.sync({ alter: true });
-
-    server.listen(PORT, '0.0.0.0', () => {
-      console.log(`🚀 Hotel Management API running on port ${PORT}`);
-      console.log(`📋 Environment: ${process.env.NODE_ENV}`);
-      console.log(`🔗 Health: http://localhost:${PORT}/health`);
-    });
-  } catch (err) {
-    console.error('❌ Failed to start server:', err);
-    process.exit(1);
+      console.error(`❌ Database unavailable (${code}); retrying in ${DB_RETRY_DELAY_MS / 1000}s`);
+      await new Promise((resolve) => setTimeout(resolve, DB_RETRY_DELAY_MS));
+    }
   }
+
+  console.log('✅ Database connection established');
+
+  // Sync models (do NOT use force:true in production!)
+  // await sequelize.sync({ alter: true });
+
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Hotel Management API running on port ${PORT}`);
+    console.log(`📋 Environment: ${process.env.NODE_ENV}`);
+    console.log(`🔗 Health: http://localhost:${PORT}/health`);
+  });
 };
 
 startServer();
