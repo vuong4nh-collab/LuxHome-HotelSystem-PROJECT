@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Home, ClipboardList, KeyRound, UserRound, MoreHorizontal, ReceiptText, LogIn, LogOut, CalendarDays, MapPin, Users, Search, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Home, ClipboardList, KeyRound, UserRound, MoreHorizontal, ReceiptText, LogIn, LogOut, CalendarDays, MapPin, Users, Search, ArrowRight, ArrowLeft, Tag, Minus, Plus } from 'lucide-react';
 import api from './api';
 import ConciergeChat from './components/ConciergeChat';
 import BookingFlow from './components/BookingFlow';
@@ -37,12 +37,15 @@ export default function App() {
   const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState('explore');
   const [conciergeOpen, setConciergeOpen] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
   const [homeNotice, setHomeNotice] = useState('');
   const [showBookingModal, setShowBookingModal] = useState(null);
   const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState('');
+  const [hotelDestination, setHotelDestination] = useState('');
+  const [hotelGuestCounts, setHotelGuestCounts] = useState({ rooms: 1, adults: 2, children: 0, infants: 0 });
+  const [guestExpanded, setGuestExpanded] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoExpanded, setPromoExpanded] = useState(false);
   const [availableRooms, setAvailableRooms] = useState([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [roomsError, setRoomsError] = useState('');
@@ -66,6 +69,7 @@ export default function App() {
       setBranches(list);
       if (list.length && !selectedBranchId) {
         setSelectedBranchId(String(list[0].id));
+        setHotelDestination(`${list[0].name} · ${list[0].city}`);
       }
     } catch (error) {
       console.error('Failed to load branches', error);
@@ -203,9 +207,10 @@ export default function App() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (!selectedBranchId || activeTab !== 'hotel') return;
-    loadAvailableRooms(selectedBranchId, bookingForm.checkIn, bookingForm.checkOut, bookingForm.guests);
-  }, [activeTab, selectedBranchId, bookingForm.checkIn, bookingForm.checkOut, bookingForm.guests]);
+    if (activeTab !== 'hotel-results') return;
+    const guests = Math.max(1, hotelGuestCounts.adults + hotelGuestCounts.children);
+    loadAvailableRooms(selectedBranchId, bookingForm.checkIn, bookingForm.checkOut, guests);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!user) return;
@@ -349,17 +354,42 @@ export default function App() {
       : 'Dịch vụ thuê xe sẽ sớm có mặt trên LuxHome.');
   };
 
-  const filteredRooms = useMemo(() => {
-    return availableRooms.filter(r => {
-      const matchCat = selectedCategory === 'All' || 
-        r.category?.toLowerCase() === selectedCategory.toLowerCase();
-      const matchSearch = !searchQuery.trim() || 
-        r.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-        r.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        String(r.roomNumber || '').includes(searchQuery);
-      return matchCat && matchSearch;
-    });
-  }, [availableRooms, selectedCategory, searchQuery]);
+  const handleDestinationChange = (value) => {
+    setHotelDestination(value);
+    const normalizedValue = value.trim().toLocaleLowerCase('vi');
+    const branch = branches.find((item) => [item.city, item.name, `${item.name} · ${item.city}`]
+      .some((label) => label?.trim().toLocaleLowerCase('vi') === normalizedValue));
+    setSelectedBranchId(branch ? String(branch.id) : '');
+  };
+
+  const updateGuestCount = (key, delta) => {
+    const next = {
+      ...hotelGuestCounts,
+      [key]: Math.max(key === 'rooms' ? 1 : 0, Math.min(10, hotelGuestCounts[key] + delta)),
+    };
+    setHotelGuestCounts(next);
+    setBookingForm((form) => ({ ...form, guests: Math.max(1, next.adults + next.children) }));
+  };
+
+  const handleHotelSearch = (event) => {
+    event.preventDefault();
+    if (bookingForm.checkOut <= bookingForm.checkIn) {
+      setRoomsError('Ngày trả phòng phải sau ngày nhận phòng.');
+      return;
+    }
+    setRoomsError('');
+    setActiveTab('hotel-results');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const formatStayDate = (value) => {
+    const date = new Date(`${value}T00:00:00`);
+    return {
+      day: date.toLocaleDateString('vi-VN', { day: '2-digit' }),
+      month: date.toLocaleDateString('vi-VN', { month: 'long' }),
+      monthYear: date.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' }),
+    };
+  };
 
   const conciergeBookingContext = useMemo(() => {
     const active =
@@ -411,18 +441,13 @@ export default function App() {
   };
 
   return (
-    <div className="pwa-container">
-      {/* Header */}
-      <header className={`pwa-header ${activeTab === 'explore' ? 'pwa-header-home' : ''} ${activeTab === 'hotel' ? 'pwa-header-hotel' : ''}`}>
+    <div className={`pwa-container ${['hotel', 'hotel-results'].includes(activeTab) ? 'hotel-flow-active' : ''}`}>
+      { !['hotel', 'hotel-results'].includes(activeTab) && <header className={`pwa-header ${activeTab === 'explore' ? 'pwa-header-home' : ''}`}>
         <div className="brand-logo">
-          {activeTab === 'hotel' ? (
-            <button type="button" className="hotel-back-button" onClick={() => setActiveTab('explore')} aria-label="Về trang chủ">
-              <ArrowLeft size={19} />
-            </button>
-          ) : <span className="crown-icon">👋</span>}
+          <span className="crown-icon">👋</span>
           <div className="brand-copy">
-            <span className="brand-name">{activeTab === 'hotel' ? 'LUXHOME · KHÁCH SẠN' : 'LuxHome'}</span>
-            <h1>{activeTab === 'explore' ? `Xin chào, ${user?.full_name?.split(' ')[0] || 'bạn'}` : activeTab === 'hotel' ? 'Khách sạn' : 'Kỳ nghỉ của bạn'}</h1>
+            <span className="brand-name">LuxHome</span>
+            <h1>{activeTab === 'explore' ? `Xin chào, ${user?.full_name?.split(' ')[0] || 'bạn'}` : 'Kỳ nghỉ của bạn'}</h1>
           </div>
         </div>
 
@@ -437,7 +462,7 @@ export default function App() {
           </button>
         )}
 
-      </header>
+  </header>}
 
       {/* TAB 1: EXPLORE / SEARCH ROOMS */}
       {activeTab === 'explore' && (
@@ -485,35 +510,50 @@ export default function App() {
       )}
 
       {activeTab === 'hotel' && (
-        <main className="explore-main hotel-main">
-          <section className="explore-section hotel-section" id="hotel-search">
-            <div className="explore-section-heading hotel-section-heading">
-              <div>
-                <span className="section-kicker">LÊN KẾ HOẠCH NGHỈ DƯỠNG</span>
-                <h2>Tìm khách sạn</h2>
-              </div>
-              <span className="hotel-mark" aria-hidden="true">⌂</span>
-            </div>
-            <div className="hotel-search-panel">
-              <label className="search-control search-location">
-                <span><MapPin size={15} /> Địa điểm</span>
-                <select
-                  value={selectedBranchId}
-                  onChange={(event) => setSelectedBranchId(event.target.value)}
-                  aria-label="Chọn chi nhánh hoặc địa điểm"
-                >
-                  {branches.length === 0 ? <option value="">Đang tải chi nhánh...</option> : branches.map((branch) => (
-                    <option key={branch.id} value={branch.id}>{branch.name} · {branch.city}</option>
-                  ))}
-                </select>
-              </label>
-              <div className="search-date-row">
-                <label className="search-control">
-                  <span><CalendarDays size={15} /> Nhận phòng</span>
+        <main className="hotel-search-screen">
+          <form className="hotel-search-form" onSubmit={handleHotelSearch}>
+            <header className="hotel-search-header">
+              <button type="button" className="hotel-search-back" onClick={() => setActiveTab('explore')} aria-label="Quay lại trang chủ">
+                <ArrowLeft size={21} />
+              </button>
+              <h1>Tìm khách sạn</h1>
+              <span className="hotel-search-header-spacer" aria-hidden="true" />
+            </header>
+
+            <label className="hotel-location-field">
+              <input
+                type="search"
+                list="hotel-destinations"
+                placeholder="Tìm địa điểm - khách sạn"
+                value={hotelDestination}
+                onChange={(event) => handleDestinationChange(event.target.value)}
+                aria-label="Tìm địa điểm hoặc khách sạn"
+              />
+              <datalist id="hotel-destinations">
+                {branches.map((branch) => (
+                  <option key={branch.id} value={`${branch.name} · ${branch.city}`} />
+                ))}
+                {[...new Set(branches.map((branch) => branch.city).filter(Boolean))].map((city) => (
+                  <option key={city} value={city} />
+                ))}
+              </datalist>
+              <Search size={20} aria-hidden="true" />
+            </label>
+
+            <section className="hotel-detail-card hotel-date-card" aria-label="Ngày lưu trú">
+              <CalendarDays className="hotel-detail-icon" size={21} aria-hidden="true" />
+              <div className="hotel-date-item">
+                <span className="hotel-detail-label">Nhận phòng</span>
+                <strong>{formatStayDate(bookingForm.checkIn).day}</strong>
+                <span className="hotel-date-month">{formatStayDate(bookingForm.checkIn).monthYear}</span>
+                <div className="hotel-date-edit">
+                  <span><CalendarDays size={12} aria-hidden="true" /> Chỉnh ngày</span>
                   <input
                     type="date"
+                    className="hotel-date-native-input"
                     value={bookingForm.checkIn}
                     min={getDateInputValue()}
+                    aria-label="Chỉnh ngày nhận phòng"
                     onChange={(event) => {
                       const checkIn = event.target.value;
                       setBookingForm((previous) => ({
@@ -525,133 +565,118 @@ export default function App() {
                       }));
                     }}
                   />
-                </label>
-                <label className="search-control">
-                  <span><CalendarDays size={15} /> Trả phòng</span>
+                </div>
+              </div>
+              <ArrowRight className="hotel-date-arrow" size={19} aria-hidden="true" />
+              <div className="hotel-date-item">
+                <span className="hotel-detail-label">Trả phòng</span>
+                <strong>{formatStayDate(bookingForm.checkOut).day}</strong>
+                <span className="hotel-date-month">{formatStayDate(bookingForm.checkOut).monthYear}</span>
+                <div className="hotel-date-edit">
+                  <span><CalendarDays size={12} aria-hidden="true" /> Chỉnh ngày</span>
                   <input
                     type="date"
+                    className="hotel-date-native-input"
                     value={bookingForm.checkOut}
                     min={bookingForm.checkIn || getDateInputValue(1)}
+                    aria-label="Chỉnh ngày trả phòng"
                     onChange={(event) => setBookingForm((previous) => ({ ...previous, checkOut: event.target.value }))}
                   />
-                </label>
+                </div>
               </div>
-              <label className="search-control search-guests">
-                <span><Users size={15} /> Số khách</span>
-                <select
-                  value={bookingForm.guests}
-                  onChange={(event) => setBookingForm((previous) => ({ ...previous, guests: Number(event.target.value) }))}
-                  aria-label="Số khách"
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8].map((guests) => <option key={guests} value={guests}>{guests} người</option>)}
-                </select>
-              </label>
-              <label className="search-query-control">
-                <Search size={17} aria-hidden="true" />
-                <input
-                  type="search"
-                  placeholder="Tìm theo tên hoặc hạng phòng"
-                  value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
-                />
-                {searchQuery && (
-                  <button type="button" onClick={() => setSearchQuery('')} aria-label="Xóa tìm kiếm">×</button>
-                )}
-              </label>
-            </div>
-          </section>
+            </section>
 
-          <section className="explore-section destination-section">
-            <div className="explore-section-heading">
-              <h2>Điểm đến nổi bật</h2>
-              <MapPin size={18} aria-hidden="true" />
-            </div>
-            <div className="destination-list">
-              {[...new Map(branches.filter((branch) => branch.city).map((branch) => [branch.city, branch])).values()].map((branch) => (
-                <button
-                  type="button"
-                  className="destination-chip"
-                  key={branch.id}
-                  onClick={() => setSelectedBranchId(String(branch.id))}
-                >
-                  {branch.city}
-                </button>
-              ))}
-              {branches.length === 0 && <span className="destination-loading">Đang tải điểm đến...</span>}
-            </div>
-          </section>
-
-          <section className="explore-section">
-            <div className="explore-section-heading">
-              <h2>Gợi ý cho bạn</h2>
-            </div>
-            <div className="suggest-list">
-              {availableRooms.slice(0, 4).map((room) => (
-                <button type="button" key={room.id} className="suggest-card" onClick={() => setShowBookingModal(room)}>
-                  <img src={room.image} alt="" className="suggest-image" loading="lazy" />
-                  <span className="suggest-info">
-                    <strong className="suggest-name">{room.name}</strong>
-                    <span className="suggest-rating">★ {room.rating} · {room.category}</span>
-                    <span className="suggest-price">{formatCurrency(room.price)} <small>/ đêm</small></span>
-                  </span>
-                </button>
-              ))}
-              {availableRooms.length === 0 && (
-                <div className="suggest-empty">
-                  {roomsLoading ? 'Đang tìm phòng gợi ý...' : roomsError ? 'Chưa thể tải gợi ý lúc này.' : 'Chưa có phòng khả dụng cho lựa chọn này.'}
+            <section className={`hotel-detail-card hotel-guests-card ${guestExpanded ? 'is-expanded' : ''}`}>
+              <Users className="hotel-detail-icon" size={21} aria-hidden="true" />
+              <button type="button" className="hotel-guest-summary" onClick={() => setGuestExpanded((expanded) => !expanded)} aria-expanded={guestExpanded}>
+                <span className="hotel-detail-label">Khách và phòng</span>
+                <span>{hotelGuestCounts.rooms} Phòng · {hotelGuestCounts.adults} Người lớn · {hotelGuestCounts.children} Trẻ em · {hotelGuestCounts.infants} Em bé</span>
+              </button>
+              {guestExpanded && (
+                <div className="hotel-guest-options">
+                  {[
+                    ['rooms', 'Phòng'],
+                    ['adults', 'Người lớn'],
+                    ['children', 'Trẻ em'],
+                    ['infants', 'Em bé'],
+                  ].map(([key, label]) => (
+                    <div className="hotel-guest-row" key={key}>
+                      <span>{label}</span>
+                      <div className="hotel-stepper">
+                        <button type="button" onClick={() => updateGuestCount(key, -1)} aria-label={`Giảm ${label}`}><Minus size={15} /></button>
+                        <strong>{hotelGuestCounts[key]}</strong>
+                        <button type="button" onClick={() => updateGuestCount(key, 1)} aria-label={`Tăng ${label}`}><Plus size={15} /></button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
-            </div>
-          </section>
+            </section>
 
-          <section className="explore-section hotel-section">
-            <div className="section-title room-category-title"><span>Danh mục hạng phòng</span></div>
-            <div className="categories-bar">
-              {['All', 'Deluxe', 'Executive', 'Presidential', 'Standard'].map((cat) => (
-                <button
-                  key={cat}
-                  type="button"
-                  className={`cat-pill ${selectedCategory === cat ? 'active' : ''}`}
-                  onClick={() => setSelectedCategory(cat)}
-                >
-                  {cat === 'All' ? 'Tất cả' : cat}
-                </button>
+            <section className={`hotel-detail-card hotel-promo-card ${promoExpanded ? 'is-expanded' : ''}`}>
+              <Tag className="hotel-detail-icon" size={20} aria-hidden="true" />
+              <button type="button" className="hotel-promo-trigger" onClick={() => setPromoExpanded((expanded) => !expanded)} aria-expanded={promoExpanded}>
+                <span><strong>Mã ưu đãi</strong><small>{promoCode || 'Chọn hoặc nhập mã'}</small></span>
+                <ArrowRight size={18} aria-hidden="true" />
+              </button>
+              {promoExpanded && (
+                <input
+                  className="hotel-promo-input"
+                  type="text"
+                  placeholder="Nhập mã ưu đãi"
+                  value={promoCode}
+                  onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
+                  aria-label="Mã ưu đãi"
+                />
+              )}
+            </section>
+
+            {roomsError && <p className="hotel-form-error" role="alert">{roomsError}</p>}
+            <button type="submit" className="hotel-search-button">Tìm kiếm</button>
+          </form>
+        </main>
+      )}
+
+      {activeTab === 'hotel-results' && (
+        <main className="hotel-results-screen">
+          <header className="hotel-search-header hotel-results-header">
+            <button type="button" className="hotel-search-back" onClick={() => setActiveTab('hotel')} aria-label="Sửa tìm kiếm">
+              <ArrowLeft size={21} />
+            </button>
+            <h1>Khách sạn phù hợp</h1>
+            <button type="button" className="hotel-results-edit" onClick={() => setActiveTab('hotel')}>Sửa</button>
+          </header>
+          <p className="hotel-results-summary">
+            {hotelDestination} · {formatStayDate(bookingForm.checkIn).day} {formatStayDate(bookingForm.checkIn).month} – {formatStayDate(bookingForm.checkOut).day} {formatStayDate(bookingForm.checkOut).monthYear}
+          </p>
+          {roomsLoading ? (
+            <div className="rooms-empty">Đang tìm khách sạn phù hợp...</div>
+          ) : roomsError ? (
+            <div className="rooms-error" role="alert">{roomsError}</div>
+          ) : availableRooms.length === 0 ? (
+            <div className="rooms-empty">Không tìm thấy khách sạn phù hợp với lựa chọn này.</div>
+          ) : (
+            <div className="room-list hotel-results-list">
+              {availableRooms.map((room) => (
+                <article key={room.id} className="pwa-room-card">
+                  <div className="room-img-wrapper" style={{ backgroundImage: `url(${room.image})` }}>
+                    <div className="room-badge">Tầng {room.floor || 1} · {room.category}</div>
+                    <div className="room-rating-pill">★ {room.rating}</div>
+                  </div>
+                  <div className="room-card-info">
+                    <h2>{room.name}</h2>
+                    <div className="room-amenities">
+                      {room.amenities.map((amenity, index) => <span key={index}>✓ {amenity}</span>)}
+                    </div>
+                    <div className="room-price-row">
+                      <div className="price-text">{formatCurrency(room.price)} <span>/đêm</span></div>
+                      <button type="button" className="btn-book" onClick={() => setShowBookingModal(room)}>Đặt phòng</button>
+                    </div>
+                  </div>
+                </article>
               ))}
             </div>
-
-            <div className="explore-section-heading room-results-heading">
-              <h2>Phòng phù hợp <span>({filteredRooms.length})</span></h2>
-              {roomsLoading && <span className="loading-label">Đang cập nhật</span>}
-            </div>
-            {roomsError && <div className="rooms-error" role="alert">{roomsError}</div>}
-
-            <div className="room-list">
-              {roomsLoading ? (
-                <div className="rooms-empty">Đang tìm phòng phù hợp với chuyến đi của bạn...</div>
-              ) : filteredRooms.length === 0 ? (
-                <div className="rooms-empty">Không tìm thấy phòng phù hợp. Hãy thử đổi ngày, chi nhánh hoặc bộ lọc.</div>
-              ) : (
-                filteredRooms.map((room) => (
-                  <article key={room.id} className="pwa-room-card">
-                    <div className="room-img-wrapper" style={{ backgroundImage: `url(${room.image})` }}>
-                      <div className="room-badge">Tầng {room.floor || 1} · {room.category}</div>
-                      <div className="room-rating-pill">★ {room.rating}</div>
-                    </div>
-                    <div className="room-card-info">
-                      <h3>{room.name}</h3>
-                      <div className="room-amenities">
-                        {room.amenities.map((amenity, index) => <span key={index}>✓ {amenity}</span>)}
-                      </div>
-                      <div className="room-price-row">
-                        <div className="price-text">{formatCurrency(room.price)} <span>/đêm</span></div>
-                        <button type="button" className="btn-book" onClick={() => setShowBookingModal(room)}>Đặt phòng</button>
-                      </div>
-                    </div>
-                  </article>
-                ))
-              )}
-            </div>
-          </section>
+          )}
         </main>
       )}
 
@@ -857,12 +882,14 @@ export default function App() {
         />
       )}
 
-      <ConciergeChat
-        open={conciergeOpen}
-        onOpenChange={setConciergeOpen}
-        bookingContext={conciergeBookingContext}
-        onSuggestedAction={handleConciergeAction}
-      />
+      {!['hotel', 'hotel-results'].includes(activeTab) && (
+        <ConciergeChat
+          open={conciergeOpen}
+          onOpenChange={setConciergeOpen}
+          bookingContext={conciergeBookingContext}
+          onSuggestedAction={handleConciergeAction}
+        />
+      )}
 
       {!user && authModalOpen && (
         <div className="modal-pwa auth-modal">
@@ -966,7 +993,7 @@ export default function App() {
         </div>
       )}
 
-      <nav className="tabbar" aria-label="Điều hướng chính">
+      {!['hotel', 'hotel-results'].includes(activeTab) && <nav className="tabbar" aria-label="Điều hướng chính">
         <button type="button" className={`tab ${activeNavTab === 'home' ? 'active' : ''}`} onClick={() => selectNavTab('home')} aria-current={activeNavTab === 'home' ? 'page' : undefined}>
           <Home aria-hidden="true" /><span>Trang chủ</span>
         </button>
@@ -982,7 +1009,7 @@ export default function App() {
         <button type="button" className={`tab ${activeNavTab === 'more' ? 'active' : ''}`} onClick={() => selectNavTab('more')} aria-current={activeNavTab === 'more' ? 'page' : undefined}>
           <MoreHorizontal aria-hidden="true" /><span>Thêm</span>
         </button>
-      </nav>
+      </nav>}
     </div>
   );
 }
