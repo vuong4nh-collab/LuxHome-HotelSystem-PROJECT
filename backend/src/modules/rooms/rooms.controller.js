@@ -27,22 +27,20 @@ const getAvailableRooms = async (req, res, next) => {
   try {
     const { checkin_date, checkout_date, num_guests, type, hotel_branch_id } = req.query;
     if (!checkin_date || !checkout_date) throw createError('checkin_date and checkout_date are required', 400);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(checkin_date) || !/^\d{4}-\d{2}-\d{2}$/.test(checkout_date)
+      || checkout_date <= checkin_date) {
+      throw createError('A valid check-in and check-out date range is required', 400);
+    }
 
-    const restaurantBookingWhere = {
+    const conflictingBookingWhere = {
       status: { [Op.in]: ['Pending','Confirmed','CheckedIn'] },
-      [Op.or]: [
-        { checkin_date: { [Op.between]: [checkin_date, checkout_date] } },
-        { checkout_date: { [Op.between]: [checkin_date, checkout_date] } },
-        {
-          checkin_date: { [Op.lte]: checkin_date },
-          checkout_date: { [Op.gte]: checkout_date },
-        },
-      ],
+      checkin_date: { [Op.lt]: checkout_date },
+      checkout_date: { [Op.gt]: checkin_date },
     };
-    if (hotel_branch_id) restaurantBookingWhere.hotel_branch_id = parseInt(hotel_branch_id);
+    if (hotel_branch_id) conflictingBookingWhere.hotel_branch_id = parseInt(hotel_branch_id);
 
     const conflictingBookings = await Booking.findAll({
-      where: restaurantBookingWhere,
+      where: conflictingBookingWhere,
       attributes: ['room_id'],
     });
     const bookedRoomIds = conflictingBookings.map(b => b.room_id);

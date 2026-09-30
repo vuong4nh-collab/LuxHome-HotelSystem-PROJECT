@@ -24,19 +24,16 @@ INSERT INTO roles (name, description) VALUES
 ('Admin', 'Quản trị viên hệ thống toàn quyền'),
 ('Manager', 'Quản lý khách sạn, xem báo cáo toàn diện'),
 ('Receptionist', 'Lễ tân, quản lý đặt phòng và check-in/out'),
-('Housekeeping', 'Nhân viên dọn phòng và vệ sinh'),
-('Customer', 'Khách hàng sử dụng ứng dụng đặt phòng'),
-('ChainAdmin', 'Quản trị chuỗi khách sạn'),
-('AreaManager', 'Quản lý khu vực Bắc – Trung – Nam'),
-('PropertyManager', 'Quản lý một khách sạn/chi nhánh');
+('Staff', 'Nhân viên xử lý dịch vụ, tình trạng phòng, vệ sinh và bảo trì'),
+('Customer', 'Khách hàng sử dụng ứng dụng đặt phòng');
 
 -- ── Users ──────────────────────────────────────────────────
 -- Passwords are bcrypt hash of 'Password@123'
 INSERT INTO users (role_id, hotel_branch_id, full_name, email, phone, password_hash, is_active) VALUES
 (1, NULL, 'Admin System',   'admin@hotel.com',        '0901000001', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
-(6, NULL, 'Chain Admin', 'chainadmin@luxstay.vn', '0902000001', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
-(7, NULL, 'Area Manager', 'area.manager@luxstay.vn', '0902000002', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
-(8, 1, 'Nguyễn Văn Quản', 'manager@hotel.com', '0901000002', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
+(1, NULL, 'Admin chuỗi', 'chainadmin@luxstay.vn', '0902000001', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
+(2, NULL, 'Manager khu vực', 'area.manager@luxstay.vn', '0902000002', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
+(2, 1, 'Nguyễn Văn Quản', 'manager@hotel.com', '0901000002', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
 (3, 1, 'Trần Thị Lễ Tân', 'receptionist@hotel.com', '0901000003', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
 (4, 1, 'Lê Văn Dọn', 'housekeeping@hotel.com', '0901000004', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
 (5, NULL, 'Phạm Thị Khách', 'customer@hotel.com', '0901000005', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE);
@@ -123,10 +120,10 @@ VALUES (2, 14, '2026-09-12', '2026-09-14', '2026-09-12 15:00:00',
 
 -- ── Housekeeping Tasks ─────────────────────────────────
 INSERT INTO housekeeping_tasks (room_id, assigned_to, task_type, priority, status, scheduled_at, created_by) VALUES
-(3,  4, 'Cleaning', 'High', 'Pending',    '2026-09-13 09:00:00', 3),  -- Room 103 đang cleaning
-(4,  4, 'Maintenance', 'Urgent', 'InProgress', '2026-09-13 08:00:00', 3), -- Room 104 maintenance
-(8,  4, 'Turndown', 'Normal', 'Pending',   '2026-09-13 18:00:00', 3), -- Room 204 turndown tonight
-(14, 4, 'Cleaning', 'Normal', 'Pending',   '2026-09-13 10:00:00', 3); -- Room 402 morning clean
+(3,  6, 'Cleaning', 'High', 'Pending',    '2026-09-13 09:00:00', 3),  -- Room 103 đang cleaning
+(4,  6, 'Maintenance', 'Urgent', 'InProgress', '2026-09-13 08:00:00', 3), -- Room 104 maintenance
+(8,  6, 'Turndown', 'Normal', 'Pending',   '2026-09-13 18:00:00', 3), -- Room 204 turndown tonight
+(14, 6, 'Cleaning', 'Normal', 'Pending',   '2026-09-13 10:00:00', 3); -- Room 402 morning clean
 
 -- ── Service Orders ─────────────────────────────────────
 INSERT INTO service_orders (booking_id, requested_by, status, total_amount, processed_by) VALUES
@@ -153,5 +150,5 @@ INSERT INTO invoice_items (invoice_id, description, item_type, quantity, unit_pr
 -- ── Notifications ────────────────────────────────────
 INSERT INTO notifications (user_id, type, title, message, related_id, related_type) VALUES
 (3, 'Booking', 'Đặt phòng mới', 'Khách hàng Trần Thị Hoa vừa đặt phòng 302 (14/09 - 17/09)', 2, 'booking'),
-(4, 'Housekeeping', 'Nhiệm vụ mới', 'Phòng 103 cần dọn dẹp trước 11:00', 1, 'housekeeping_task'),
+(6, 'Housekeeping', 'Nhiệm vụ mới', 'Phòng 103 cần dọn dẹp trước 11:00', 1, 'housekeeping_task'),
 (NULL, 'System', 'Hệ thống cập nhật', 'Phiên bản 2.0 đã được cập nhật thành công', NULL, NULL);

@@ -77,8 +77,10 @@ export default function App() {
       setUser(userData);
     } catch {
       // Mock login for offline/demo if server is unavailable
-      if (loginForm.username === 'admin' || loginForm.username === 'receptionist' || loginForm.username === 'staff') {
-        const mockUser = { id: 1, fullName: 'Admin Manager', role: loginForm.username === 'admin' ? 'Admin' : 'Receptionist', email: `${loginForm.username}@luxstay.com` };
+      const mockRoles = { admin: 'Admin', manager: 'Manager', receptionist: 'Receptionist', staff: 'Staff' };
+      if (mockRoles[loginForm.username]) {
+        const role = mockRoles[loginForm.username];
+        const mockUser = { id: 1, fullName: `${role} Demo`, role, email: `${loginForm.username}@luxstay.com` };
         const mockToken = 'mock-jwt-token-123456';
         localStorage.setItem('luxstay_token', mockToken);
         localStorage.setItem('hotel_token', mockToken);
@@ -158,7 +160,7 @@ export default function App() {
               <input
                 type="text"
                 className="form-control"
-                placeholder="Nhập 'admin' hoặc 'receptionist'"
+                placeholder="Nhập admin, manager, receptionist hoặc staff"
                 value={loginForm.username}
                 onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
                 required
@@ -183,7 +185,7 @@ export default function App() {
           </form>
 
           <div className="login-footer">
-            <p>Tài khoản thử nghiệm nhanh: Username <strong>admin</strong> | Mật khẩu bất kỳ</p>
+            <p>Tài khoản demo: admin, manager, receptionist hoặc staff | Mật khẩu bất kỳ khi API không kết nối</p>
           </div>
         </div>
       </div>

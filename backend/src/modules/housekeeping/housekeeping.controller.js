@@ -14,8 +14,8 @@ const getAllTasks = async (req, res, next) => {
     const where = {};
     if (status) where.status = status;
 
-    // Housekeeping staff only see their own tasks
-    if (req.user.role.name === 'Housekeeping') {
+    // Staff only see their own tasks
+    if (req.user.role.name === 'Staff') {
       where.assigned_to = req.user.id;
     } else if (assigned_to) {
       where.assigned_to = assigned_to;

@@ -18,7 +18,8 @@ services:
       - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
       - ./database/migrations/002_hotel_search_demo_rooms.sql:/docker-entrypoint-initdb.d/03-hotel-search-demo-rooms.sql
-      - ./database/migrations/002_hotel_search_demo_rooms.sql:/docker-entrypoint-initdb.d/03-hotel-search-demo-rooms.sql
+      - ./database/migrations/003_actor_role_consolidation.sql:/docker-entrypoint-initdb.d/04-actor-role-consolidation.sql
+      - ./database/migrations/004_city_location_hotel_search.sql:/docker-entrypoint-initdb.d/05-city-location-hotel-search.sql
     networks:
       - hotel_net
     healthcheck:

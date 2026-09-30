@@ -14,7 +14,7 @@ router.use(authenticate);
 router.post('/types', authorize('Admin','Manager'), ctrl.createRoomType);
 router.post('/', authorize('Admin','Manager','Receptionist'), ctrl.createRoom);
 router.put('/:id', authorize('Admin','Manager'), ctrl.updateRoom);
-router.patch('/:id/status', authorize('Admin','Manager','Receptionist','Housekeeping'), ctrl.updateRoomStatus);
+router.patch('/:id/status', authorize('Admin','Manager','Receptionist','Staff'), ctrl.updateRoomStatus);
 router.delete('/:id', authorize('Admin','Manager'), ctrl.deleteRoom);
 
 module.exports = router;

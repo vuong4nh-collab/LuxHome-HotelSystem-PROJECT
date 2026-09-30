@@ -106,7 +106,7 @@ export default function DefaultLayout({
       case 'docs':
         return <PlaceholderPage title="Documentation" category="Extras" description="Tài liệu hướng dẫn triển khai và tích hợp API hệ thống LuxStay Hotel." />;
       case 'users':
-        return <PlaceholderPage title="Users Management" category="System" description="Danh sách tài khoản quản trị viên, lễ tân và buồng phòng." />;
+        return <PlaceholderPage title="Users Management" category="System" description="Quản lý tài khoản Admin, Manager, Receptionist, Staff và Customer." />;
       case 'settings':
         return <PlaceholderPage title="System Settings" category="System" description="Cấu hình hệ thống, tích hợp thanh toán và thiết lập ca làm việc." />;
       default:

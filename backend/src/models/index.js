@@ -16,8 +16,10 @@ const Hotel = sequelize.define('Hotel', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   hotel_chain_id: { type: DataTypes.INTEGER, allowNull: false },
   name: { type: DataTypes.STRING(120), allowNull: false },
+  slug: DataTypes.STRING(160),
   code: { type: DataTypes.STRING(30), allowNull: false, unique: true },
   city: { type: DataTypes.STRING(80), allowNull: false },
+  city_id: DataTypes.INTEGER,
   region: DataTypes.STRING(60),
   country: { type: DataTypes.STRING(60), defaultValue: 'Vietnam' },
   address: DataTypes.STRING(255),
@@ -27,6 +29,33 @@ const Hotel = sequelize.define('Hotel', {
   status: { type: DataTypes.ENUM('Active','Inactive','Maintenance'), defaultValue: 'Active' },
   description: DataTypes.TEXT,
 }, { tableName: 'hotels' });
+
+const City = sequelize.define('City', {
+  id: { type: DataTypes.INTEGER, primaryKey: true },
+  name: { type: DataTypes.STRING(100), allowNull: false },
+  slug: { type: DataTypes.STRING(120), allowNull: false, unique: true },
+  description: DataTypes.TEXT,
+  image: DataTypes.STRING(255),
+  is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+}, { tableName: 'cities' });
+
+const Location = sequelize.define('Location', {
+  id: { type: DataTypes.INTEGER, primaryKey: true },
+  city_id: { type: DataTypes.INTEGER, allowNull: false },
+  name: { type: DataTypes.STRING(120), allowNull: false },
+  slug: { type: DataTypes.STRING(120), allowNull: false },
+  description: DataTypes.TEXT,
+  image: DataTypes.STRING(255),
+  is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+}, { tableName: 'locations' });
+
+const HotelLocation = sequelize.define('HotelLocation', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  hotel_id: { type: DataTypes.INTEGER, allowNull: false },
+  location_id: { type: DataTypes.INTEGER, allowNull: false },
+  distance_km: { type: DataTypes.DECIMAL(6, 2), defaultValue: 0 },
+  is_primary: { type: DataTypes.BOOLEAN, defaultValue: false },
+}, { tableName: 'hotel_locations', updatedAt: false });
 
 const HotelBranch = sequelize.define('HotelBranch', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -49,7 +78,7 @@ const HotelBranch = sequelize.define('HotelBranch', {
 // ── Role ──────────────────────────────────────────────────────
 const Role = sequelize.define('Role', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  name: { type: DataTypes.ENUM('Admin','Manager','Receptionist','Housekeeping','Customer','ChainAdmin','AreaManager','PropertyManager'), allowNull: false, unique: true },
+  name: { type: DataTypes.ENUM('Admin','Manager','Receptionist','Staff','Customer'), allowNull: false, unique: true },
   description: DataTypes.STRING(255),
 }, { tableName: 'roles', updatedAt: false });
 
@@ -282,6 +311,13 @@ const ConsultationRequest = sequelize.define('ConsultationRequest', {
 HotelChain.hasMany(Hotel, { foreignKey: 'hotel_chain_id', as: 'hotels' });
 Hotel.belongsTo(HotelChain, { foreignKey: 'hotel_chain_id', as: 'chain' });
 
+City.hasMany(Location, { foreignKey: 'city_id', as: 'locations' });
+Location.belongsTo(City, { foreignKey: 'city_id', as: 'city' });
+City.hasMany(Hotel, { foreignKey: 'city_id', as: 'hotels' });
+Hotel.belongsTo(City, { foreignKey: 'city_id', as: 'cityDetails' });
+Hotel.belongsToMany(Location, { through: HotelLocation, foreignKey: 'hotel_id', otherKey: 'location_id', as: 'locations' });
+Location.belongsToMany(Hotel, { through: HotelLocation, foreignKey: 'location_id', otherKey: 'hotel_id', as: 'hotels' });
+
 Hotel.hasMany(HotelBranch, { foreignKey: 'hotel_id', as: 'branches' });
 HotelBranch.belongsTo(Hotel, { foreignKey: 'hotel_id', as: 'hotel' });
 
@@ -343,7 +379,7 @@ Notification.belongsTo(HotelBranch, { foreignKey: 'hotel_branch_id', as: 'branch
 
 module.exports = {
   sequelize,
-  HotelChain, Hotel, HotelBranch,
+  HotelChain, Hotel, HotelBranch, City, Location, HotelLocation,
   Role, User, Customer,
   RoomType, Room,
   Booking,

@@ -13,6 +13,7 @@ const { errorHandler } = require('./middlewares/errorHandler');
 // ── Route imports ────────────────────────────────────────────
 const authRoutes         = require('./modules/auth/auth.routes');
 const hotelsRoutes       = require('./modules/hotels/hotels.routes');
+const locationsRoutes    = require('./modules/hotels/locations.routes');
 const roomsRoutes        = require('./modules/rooms/rooms.routes');
 const customersRoutes    = require('./modules/customers/customers.routes');
 const bookingsRoutes     = require('./modules/bookings/bookings.routes');
@@ -103,6 +104,7 @@ app.get('/health', (_, res) => res.json({
 const API = '/api';
 app.use(`${API}/auth`,          authRoutes);
 app.use(`${API}/hotels`,        hotelsRoutes);
+app.use(`${API}`,               locationsRoutes);
 app.use(`${API}/rooms`,         roomsRoutes);
 app.use(`${API}/customers`,     customersRoutes);
 app.use(`${API}/bookings`,      bookingsRoutes);

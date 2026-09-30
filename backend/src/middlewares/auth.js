@@ -43,8 +43,7 @@ const authorize = (...roles) => {
       return res.status(401).json({ success: false, message: 'Not authenticated' });
     }
     const userRole = req.user.role?.name;
-    const allowedRoles = [...roles, 'ChainAdmin', 'AreaManager', 'PropertyManager'];
-    if (!allowedRoles.includes(userRole)) {
+    if (!roles.includes(userRole)) {
       return res.status(403).json({
         success: false,
         message: `Access denied. Required roles: ${roles.join(', ')}`,

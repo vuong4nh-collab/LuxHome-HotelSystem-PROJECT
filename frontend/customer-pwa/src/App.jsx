@@ -13,79 +13,39 @@ const getDateInputValue = (offsetDays = 0, fromDate = new Date()) => {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 10);
 };
 
-const POPULAR_DESTINATIONS = [
-  { city: 'Phú Quốc', areas: ['Bãi Dài', 'Dương Đông', 'Ông Lang', 'Gành Dầu', 'An Thới'] },
-  { city: 'Nha Trang', areas: ['Trung tâm Nha Trang', 'Bãi biển Trần Phú', 'Hòn Tre', 'Vĩnh Hải'] },
-  { city: 'Đà Nẵng', areas: ['Mỹ Khê', 'An Thượng', 'Sơn Trà', 'Bà Nà Hills'] },
-  { city: 'Hà Nội', areas: ['Hoàn Kiếm', 'Ba Đình', 'Tây Hồ', 'Cầu Giấy'] },
-  { city: 'TP.HCM', areas: ['Quận 1', 'Thảo Điền', 'Phú Nhuận', 'Quận 7'] },
+const FALLBACK_DESTINATIONS = [
+  { id: 1, name: 'Phú Quốc', slug: 'phu-quoc', locations: [
+    { id: 1, name: 'Bãi Dài', slug: 'bai-dai' },
+    { id: 2, name: 'Dương Đông', slug: 'duong-dong' },
+    { id: 3, name: 'Ông Lang', slug: 'ong-lang' },
+    { id: 4, name: 'Gành Dầu', slug: 'ganh-dau' },
+    { id: 5, name: 'An Thới', slug: 'an-thoi' },
+  ] },
+  { id: 2, name: 'Nha Trang', slug: 'nha-trang', locations: [
+    { id: 6, name: 'Trung tâm Nha Trang', slug: 'trung-tam-nha-trang' },
+    { id: 7, name: 'Bãi biển Trần Phú', slug: 'tran-phu' },
+    { id: 8, name: 'Hòn Tre', slug: 'hon-tre' },
+    { id: 9, name: 'Vĩnh Hải', slug: 'vinh-hai' },
+  ] },
+  { id: 3, name: 'Đà Nẵng', slug: 'da-nang', locations: [
+    { id: 10, name: 'Mỹ Khê', slug: 'my-khe' },
+    { id: 11, name: 'An Thượng', slug: 'an-thuong' },
+    { id: 12, name: 'Sơn Trà', slug: 'son-tra' },
+    { id: 13, name: 'Bà Nà Hills', slug: 'ba-na-hills' },
+  ] },
+  { id: 4, name: 'Hà Nội', slug: 'ha-noi', locations: [
+    { id: 14, name: 'Hoàn Kiếm', slug: 'hoan-kiem' },
+    { id: 15, name: 'Ba Đình', slug: 'ba-dinh' },
+    { id: 16, name: 'Tây Hồ', slug: 'tay-ho' },
+    { id: 17, name: 'Cầu Giấy', slug: 'cau-giay' },
+  ] },
+  { id: 5, name: 'TP.HCM', slug: 'ho-chi-minh', locations: [
+    { id: 18, name: 'Quận 1', slug: 'quan-1' },
+    { id: 19, name: 'Thảo Điền', slug: 'thao-dien' },
+    { id: 20, name: 'Phú Nhuận', slug: 'phu-nhuan' },
+    { id: 21, name: 'Quận 7', slug: 'quan-7' },
+  ] },
 ];
-
-const DEMO_HOTELS = [
-  {
-    id: 901,
-    name: 'LuxHome Hanoi Heritage',
-    city: 'Hà Nội',
-    address: '18 Hàng Bông, Hoàn Kiếm',
-    star_rating: 5,
-    average_rating: 4.8,
-    review_count: 326,
-    status: 'Active',
-    description: 'Khách sạn boutique giữa khu phố cổ, thuận tiện khám phá Hồ Gươm và các điểm di sản.',
-    image_url: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1200&q=85',
-    isDemoSample: true,
-    branches: [{ id: 9001, hotel_id: 901, name: 'Hanoi Heritage', city: 'Hà Nội', address: '18 Hàng Bông, Hoàn Kiếm', latitude: 21.031, longitude: 105.849 }],
-    sampleRooms: [{ id: 99001, hotel_branch_id: 9001, name: 'Deluxe Old Quarter View', category: 'Deluxe', price: 2200000, image: 'https://images.unsplash.com/photo-1611892440504-42a792e24d32?auto=format&fit=crop&w=1000&q=85', amenities: ['Wi-Fi', 'View phố cổ', 'Bữa sáng'], rating: 4.8, roomNumber: '501', floor: 5 }],
-  },
-  {
-    id: 902,
-    name: 'LuxHome Da Nang Beachfront',
-    city: 'Đà Nẵng',
-    address: '92 Võ Nguyên Giáp, Sơn Trà',
-    star_rating: 5,
-    average_rating: 4.9,
-    review_count: 492,
-    status: 'Active',
-    description: 'Khu nghỉ dưỡng ven biển với hồ bơi ngoài trời và tầm nhìn hướng biển Mỹ Khê.',
-    image_url: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1200&q=85',
-    isDemoSample: true,
-    branches: [{ id: 9002, hotel_id: 902, name: 'Da Nang Beachfront', city: 'Đà Nẵng', address: '92 Võ Nguyên Giáp, Sơn Trà', latitude: 16.061, longitude: 108.246 }],
-    sampleRooms: [{ id: 99002, hotel_branch_id: 9002, name: 'Premier Ocean View', category: 'Premier', price: 1850000, image: 'https://images.unsplash.com/photo-1590490360182-c33d57733427?auto=format&fit=crop&w=1000&q=85', amenities: ['View biển', 'Wi-Fi', 'Hồ bơi'], rating: 4.9, roomNumber: '608', floor: 6 }],
-  },
-  {
-    id: 903,
-    name: 'LuxHome Saigon Riverside',
-    city: 'TP.HCM',
-    address: '12 Tôn Đức Thắng, Quận 1',
-    star_rating: 4,
-    average_rating: 4.6,
-    review_count: 208,
-    status: 'Active',
-    description: 'Khách sạn thành thị bên sông Sài Gòn, gần phố đi bộ Nguyễn Huệ.',
-    image_url: 'https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?auto=format&fit=crop&w=1200&q=85',
-    isDemoSample: true,
-    branches: [{ id: 9003, hotel_id: 903, name: 'Saigon Riverside', city: 'TP.HCM', address: '12 Tôn Đức Thắng, Quận 1', latitude: 10.778, longitude: 106.706 }],
-    sampleRooms: [{ id: 99003, hotel_branch_id: 9003, name: 'Executive River View', category: 'Executive', price: 1450000, image: 'https://images.unsplash.com/photo-1595576508898-0ad5c879a061?auto=format&fit=crop&w=1000&q=85', amenities: ['View sông', 'Wi-Fi', 'Phòng gym'], rating: 4.6, roomNumber: '1205', floor: 12 }],
-  },
-  {
-    id: 904,
-    name: 'LuxHome Pearl Island Resort',
-    city: 'Phú Quốc',
-    address: 'Bãi Dài, Gành Dầu, Phú Quốc',
-    star_rating: 5,
-    average_rating: 4.8,
-    review_count: 188,
-    status: 'Active',
-    description: 'Khu nghỉ dưỡng nhiệt đới gần Bãi Dài với villa hướng vườn và bãi biển riêng.',
-    image_url: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?auto=format&fit=crop&w=1200&q=85',
-    isDemoSample: true,
-    branches: [{ id: 9004, hotel_id: 904, name: 'Pearl Island Resort', city: 'Phú Quốc', address: 'Bãi Dài, Gành Dầu, Phú Quốc', latitude: 10.338, longitude: 103.886 }],
-    sampleRooms: [{ id: 99004, hotel_branch_id: 9004, name: 'Garden Villa', category: 'Villa', price: 2650000, image: 'https://images.unsplash.com/photo-1613490493576-7fde63acd811?auto=format&fit=crop&w=1000&q=85', amenities: ['Vườn riêng', 'Wi-Fi', 'Bãi biển riêng'], rating: 4.8, roomNumber: 'V12', floor: 1 }],
-  },
-];
-
-const DEMO_BRANCHES = DEMO_HOTELS.flatMap((hotel) => hotel.branches.map((branch) => ({ ...branch, hotel })));
-const DEMO_HOTEL_DIRECTORY = DEMO_HOTELS.map(({ sampleRooms, ...hotel }) => hotel);
 
 const normalizePlace = (value) => String(value || '')
   .normalize('NFD')
@@ -146,14 +106,17 @@ export default function App() {
   const [conciergeOpen, setConciergeOpen] = useState(false);
   const [homeNotice, setHomeNotice] = useState('');
   const [showBookingModal, setShowBookingModal] = useState(null);
-  const [branches, setBranches] = useState(() => import.meta.env.DEV ? DEMO_BRANCHES : []);
+  const [branches, setBranches] = useState([]);
   const [selectedBranchId, setSelectedBranchId] = useState('');
   const [hotelDestination, setHotelDestination] = useState('');
   const [selectedDestinationCity, setSelectedDestinationCity] = useState('');
+  const [selectedDestinationCitySlug, setSelectedDestinationCitySlug] = useState('');
+  const [selectedDestinationLocationSlug, setSelectedDestinationLocationSlug] = useState('');
   const [selectedHotelId, setSelectedHotelId] = useState('');
   const [destinationPickerOpen, setDestinationPickerOpen] = useState(false);
   const [destinationSearch, setDestinationSearch] = useState('');
-  const [hotelDirectory, setHotelDirectory] = useState(() => import.meta.env.DEV ? DEMO_HOTEL_DIRECTORY : []);
+  const [destinationGroups, setDestinationGroups] = useState(FALLBACK_DESTINATIONS);
+  const [hotelDirectory, setHotelDirectory] = useState([]);
   const [hotelResults, setHotelResults] = useState([]);
   const [selectedHotel, setSelectedHotel] = useState(null);
   const [hotelsLoading, setHotelsLoading] = useState(false);
@@ -183,12 +146,6 @@ export default function App() {
     Number(value || 0).toLocaleString('vi-VN', { maximumFractionDigits: 0 }) + ' đ';
 
   const refreshBranchOptions = async () => {
-    if (import.meta.env.DEV) {
-      setBranches(DEMO_BRANCHES);
-      setHotelDirectory(DEMO_HOTEL_DIRECTORY);
-      return;
-    }
-
     try {
       const { data } = await api.get('/hotels/branches');
       const list = data?.data || [];
@@ -320,7 +277,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'hotel') refreshBranchOptions();
+    if (activeTab === 'hotel') {
+      refreshBranchOptions();
+      api.get('/hotels/cities')
+        .then(({ data }) => {
+          const cities = data?.data || [];
+          setDestinationGroups(cities.length ? cities : FALLBACK_DESTINATIONS);
+        })
+        .catch((error) => {
+          console.error('Failed to load destinations', error);
+          setDestinationGroups(FALLBACK_DESTINATIONS);
+        });
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -333,37 +301,29 @@ export default function App() {
       setHotelResults([]);
 
       try {
-        let hotels;
-        if (import.meta.env.DEV) {
-          hotels = DEMO_HOTELS;
-        } else {
-          const params = selectedDestinationCity ? { city: selectedDestinationCity } : {};
-          const { data } = await api.get('/hotels/hotels', { params });
-          hotels = data?.data || [];
-        }
-        if (selectedDestinationCity) {
-          const destination = normalizePlace(selectedDestinationCity);
-          hotels = hotels.filter((hotel) => normalizePlace(hotel.city) === destination
-            || hotel.branches?.some((branch) => normalizePlace(branch.city) === destination));
-        }
+        const params = {
+          city: selectedDestinationCitySlug || undefined,
+          location: selectedDestinationLocationSlug || undefined,
+          checkIn: bookingForm.checkIn,
+          checkOut: bookingForm.checkOut,
+          guests: Math.max(1, hotelGuestCounts.adults + hotelGuestCounts.children),
+          hotelId: selectedHotelId || undefined,
+        };
+        const { data } = await api.get('/hotels/search', { params });
+        let hotels = data?.data || [];
         if (selectedHotelId) hotels = hotels.filter((hotel) => String(hotel.id) === selectedHotelId);
         hotels = hotels.filter((hotel) => !hotel.status || hotel.status === 'Active');
 
         const results = await Promise.all(hotels.map(async (hotel) => {
           const hotelBranches = (hotel.branches || branches.filter((branch) => String(branch.hotel_id) === String(hotel.id)))
             .filter((branch) => !selectedDestinationCity || normalizePlace(branch.city) === normalizePlace(selectedDestinationCity));
-          const branchResults = hotel.isDemoSample
-            ? hotelBranches.map((branch) => ({
-                branch,
-                rooms: hotel.sampleRooms.map((room) => ({ ...room, hotel_branch_id: branch.id })),
-              }))
-            : await Promise.all(hotelBranches.map(async (branch) => {
-                try {
-                  return { branch, rooms: await fetchAvailableRoomsForBranch(branch.id) };
-                } catch {
-                  return { branch, rooms: [] };
-                }
-              }));
+          const branchResults = await Promise.all(hotelBranches.map(async (branch) => {
+            try {
+              return { branch, rooms: await fetchAvailableRoomsForBranch(branch.id) };
+            } catch {
+              return { branch, rooms: [] };
+            }
+          }));
           const rooms = branchResults.flatMap(({ branch, rooms: branchRooms }) => branchRooms.map((room) => ({
             ...room,
             hotel_branch_id: room.hotel_branch_id || branch.id,
@@ -388,27 +348,8 @@ export default function App() {
         if (isCurrentSearch) setHotelResults(results);
       } catch (error) {
         if (isCurrentSearch) {
-          if (import.meta.env.DEV) {
-            const samples = DEMO_HOTELS
-              .filter((hotel) => !selectedDestinationCity || normalizePlace(hotel.city) === normalizePlace(selectedDestinationCity))
-              .filter((hotel) => !selectedHotelId || String(hotel.id) === selectedHotelId)
-              .map((hotel) => ({
-                ...hotel,
-                rooms: hotel.sampleRooms,
-                startingPrice: Math.min(...hotel.sampleRooms.map((room) => room.price)),
-                heroImage: hotel.image_url,
-                displayAddress: hotel.address,
-                rating: hotel.average_rating,
-                reviewCount: hotel.review_count,
-                latitude: hotel.branches[0]?.latitude,
-                longitude: hotel.branches[0]?.longitude,
-              }));
-            setHotelResults(samples);
-            setHotelSearchError('');
-          } else {
-            setHotelResults([]);
-            setHotelSearchError(error.response?.data?.message || 'Không thể tải danh sách khách sạn lúc này.');
-          }
+          setHotelResults([]);
+          setHotelSearchError(error.response?.data?.message || 'Không thể tải danh sách khách sạn lúc này.');
         }
       } finally {
         if (isCurrentSearch) setHotelsLoading(false);
@@ -417,7 +358,7 @@ export default function App() {
 
     searchHotels();
     return () => { isCurrentSearch = false; };
-  }, [activeTab, selectedDestinationCity, selectedHotelId, bookingForm.checkIn, bookingForm.checkOut, hotelGuestCounts.adults, hotelGuestCounts.children]);
+  }, [activeTab, selectedDestinationCity, selectedDestinationCitySlug, selectedDestinationLocationSlug, selectedHotelId, bookingForm.checkIn, bookingForm.checkOut, hotelGuestCounts.adults, hotelGuestCounts.children]);
 
   useEffect(() => {
     if (!user) return;
@@ -566,17 +507,22 @@ export default function App() {
     setDestinationPickerOpen(true);
   };
 
-  const selectDestination = ({ label, city, hotelId }) => {
+  const selectDestination = ({ label, city, citySlug, locationSlug, hotelId }) => {
     const normalizedCity = normalizePlace(city);
     const matchedHotel = hotelId
       ? hotelDirectory.find((hotel) => String(hotel.id) === String(hotelId))
       : null;
+    const destinationCity = matchedHotel?.city || city;
+    const matchedCity = destinationGroups.find((item) => String(item.id) === String(matchedHotel?.city_id)
+      || normalizePlace(item.name) === normalizePlace(destinationCity));
     const matchedBranch = branches.find((branch) => matchedHotel
       ? String(branch.hotel_id) === String(matchedHotel.id)
       : normalizePlace(branch.city) === normalizedCity);
 
     setHotelDestination(label);
     setSelectedDestinationCity(matchedHotel?.city || matchedBranch?.city || city);
+    setSelectedDestinationCitySlug(matchedCity?.slug || citySlug || '');
+    setSelectedDestinationLocationSlug(matchedHotel ? '' : (locationSlug || ''));
     setSelectedHotelId(matchedHotel ? String(matchedHotel.id) : '');
     setSelectedBranchId(matchedBranch ? String(matchedBranch.id) : '');
     setDestinationSearch('');
@@ -584,14 +530,14 @@ export default function App() {
   };
 
   const normalizedDestinationSearch = normalizePlace(destinationSearch);
-  const filteredDestinationGroups = POPULAR_DESTINATIONS.map((destination) => ({
+  const filteredDestinationGroups = destinationGroups.map((destination) => ({
     ...destination,
-    areas: destination.areas.filter((area) => !normalizedDestinationSearch
-      || normalizePlace(area).includes(normalizedDestinationSearch)
-      || normalizePlace(destination.city).includes(normalizedDestinationSearch)),
+    locations: (destination.locations || []).filter((area) => !normalizedDestinationSearch
+      || normalizePlace(area.name).includes(normalizedDestinationSearch)
+      || normalizePlace(destination.name).includes(normalizedDestinationSearch)),
   })).filter((destination) => !normalizedDestinationSearch
-    || normalizePlace(destination.city).includes(normalizedDestinationSearch)
-    || destination.areas.length > 0);
+    || normalizePlace(destination.name).includes(normalizedDestinationSearch)
+    || destination.locations.length > 0);
 
   const matchingHotels = normalizedDestinationSearch
     ? hotelDirectory.filter((hotel) => [hotel.name, hotel.city, hotel.address]
@@ -908,17 +854,22 @@ export default function App() {
               {normalizedDestinationSearch ? 'ĐỊA ĐIỂM VÀ KHU VỰC' : 'ĐỊA ĐIỂM NỔI TIẾNG'}
             </p>
             {filteredDestinationGroups.map((destination) => (
-              <section className="destination-picker-group" key={destination.city}>
-                <button type="button" className="destination-city-option" onClick={() => selectDestination({ label: destination.city, city: destination.city })}>
+              <section className="destination-picker-group" key={destination.id}>
+                <button type="button" className="destination-city-option" onClick={() => selectDestination({ label: destination.name, city: destination.name, citySlug: destination.slug })}>
                   <MapPin size={17} aria-hidden="true" />
-                  <span>{destination.city}</span>
+                  <span>{destination.name}</span>
                   <ArrowRight size={16} aria-hidden="true" />
                 </button>
-                {destination.areas.length > 0 && (
+                {destination.locations.length > 0 && (
                   <div className="destination-area-options">
-                    {destination.areas.map((area) => (
-                      <button type="button" key={area} onClick={() => selectDestination({ label: `${area}, ${destination.city}`, city: destination.city })}>
-                        {area}
+                    {destination.locations.map((area) => (
+                      <button type="button" key={area.id} onClick={() => selectDestination({
+                        label: `${area.name}, ${destination.name}`,
+                        city: destination.name,
+                        citySlug: destination.slug,
+                        locationSlug: area.slug,
+                      })}>
+                        {area.name}
                       </button>
                     ))}
                   </div>

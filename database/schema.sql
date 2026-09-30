@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS hotel_branches (
 
 CREATE TABLE IF NOT EXISTS roles (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    name ENUM('Admin','Manager','Receptionist','Housekeeping','Customer','ChainAdmin','AreaManager','PropertyManager') NOT NULL UNIQUE,
+    name ENUM('Admin','Manager','Receptionist','Staff','Customer') NOT NULL UNIQUE,
     description VARCHAR(255),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
