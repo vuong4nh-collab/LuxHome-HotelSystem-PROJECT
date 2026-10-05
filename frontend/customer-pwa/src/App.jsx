@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Home, ClipboardList, KeyRound, UserRound, CalendarDays, MapPin, Search, ArrowRight, ArrowLeft } from 'lucide-react';
 import api from './api';
-import ConciergeChat from './components/ConciergeChat';
-import BookingFlow from './components/BookingFlow';
-import OrdersTab from './components/OrdersTab';
-import CheckInTab from './components/CheckInTab';
-import AccountTab from './components/AccountTab';
-import TourSection from './components/TourSection';
-import CarSection from './components/CarSection';
+import ConciergeChat from './components/ConciergeChat.jsx';
+import BookingFlow from './components/BookingFlow.jsx';
+import OrdersTab from './components/OrdersTab.jsx';
+import CheckInTab from './components/CheckInTab.jsx';
+import AccountTab from './components/AccountTab.jsx';
+import TourSection from './components/TourSection.jsx';
+import CarSection from './components/CarSection.jsx';
 
 const AUTH_STORAGE_KEY = 'luxstay_customer_token';
 const USER_STORAGE_KEY = 'luxstay_customer_user';
