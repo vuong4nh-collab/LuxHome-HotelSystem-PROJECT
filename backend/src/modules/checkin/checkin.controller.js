@@ -12,6 +12,13 @@ const checkIn = async (req, res, next) => {
       ],
     });
     if (!booking) throw createError('Booking not found', 404);
+    if (req.user?.role?.name === 'Customer') {
+      const { Customer: CustomerModel } = require('../../models');
+      const cust = await CustomerModel.findOne({ where: { user_id: req.user.id } });
+      if (!cust || booking.customer_id !== cust.id) {
+        throw createError('Bạn không có quyền check-in đơn đặt này', 403);
+      }
+    }
     if (!['Confirmed','Pending'].includes(booking.status)) {
       throw createError(`Cannot check in. Current status: ${booking.status}`, 400);
     }
@@ -64,6 +71,13 @@ const checkOut = async (req, res, next) => {
       ],
     });
     if (!booking) throw createError('Booking not found', 404);
+    if (req.user?.role?.name === 'Customer') {
+      const { Customer: CustomerModel } = require('../../models');
+      const cust = await CustomerModel.findOne({ where: { user_id: req.user.id } });
+      if (!cust || booking.customer_id !== cust.id) {
+        throw createError('Bạn không có quyền check-out đơn đặt này', 403);
+      }
+    }
     if (booking.status !== 'CheckedIn') throw createError('Guest has not checked in', 400);
 
     const now = new Date();

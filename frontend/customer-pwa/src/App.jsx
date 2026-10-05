@@ -1,8 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Home, ClipboardList, KeyRound, UserRound, MoreHorizontal, ReceiptText, LogIn, LogOut, CalendarDays, MapPin, Users, Search, ArrowRight, ArrowLeft, Tag, Minus, Plus } from 'lucide-react';
+import { Home, ClipboardList, KeyRound, UserRound, CalendarDays, MapPin, Search, ArrowRight, ArrowLeft } from 'lucide-react';
 import api from './api';
 import ConciergeChat from './components/ConciergeChat';
 import BookingFlow from './components/BookingFlow';
+import OrdersTab from './components/OrdersTab';
+import CheckInTab from './components/CheckInTab';
+import AccountTab from './components/AccountTab';
 
 const AUTH_STORAGE_KEY = 'luxstay_customer_token';
 const USER_STORAGE_KEY = 'luxstay_customer_user';
@@ -101,8 +104,9 @@ export default function App() {
     confirmPassword: '',
   });
   const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState('explore');
+  const [checkInSubTab, setCheckInSubTab] = useState('online');
+  const [checkInTargetId, setCheckInTargetId] = useState(null);
   const [conciergeOpen, setConciergeOpen] = useState(false);
   const [homeNotice, setHomeNotice] = useState('');
   const [showBookingModal, setShowBookingModal] = useState(null);
@@ -377,28 +381,7 @@ export default function App() {
     return () => window.clearTimeout(timeout);
   }, [homeNotice]);
 
-  const serviceCatalog = [
-    { id: 1, name: 'Bò Bít Tết Wagyu A5', category: 'Đồ Ăn', price: 850000, icon: '🥩' },
-    { id: 2, name: 'Vang Đỏ Bordeaux 2018', category: 'Thức Uống', price: 1200000, icon: '🍷' },
-    { id: 3, name: 'Spa Massage Body Thụy Điển (60p)', category: 'Thư Giãn', price: 950000, icon: '💆‍♂️' },
-    { id: 4, name: 'Dịch Vụ Giặt Ủi Veston Cao Cấp', category: 'Dịch Vụ Phòng', price: 250000, icon: '👔' },
-  ];
-
-  const [myBookings, setMyBookings] = useState([
-    {
-      id: 'BK9901',
-      roomName: 'Deluxe Suite Ocean View',
-      roomNumber: '101',
-      checkIn: '2026-09-14',
-      checkOut: '2026-09-16',
-      totalPrice: 3000000,
-      status: 'Active (Đã Nhận Phòng)'
-    }
-  ]);
-
-  const [myOrders, setMyOrders] = useState([
-    { id: 'SO-101', name: 'Bò Bít Tết Wagyu A5 x1', price: 850000, status: 'Đang Chuẩn Bị 🍳' }
-  ]);
+  const [myBookings, setMyBookings] = useState([]);
 
   const handleAuthSubmit = async (event) => {
     event.preventDefault();
@@ -455,19 +438,6 @@ export default function App() {
     }
   };
 
-
-
-  const handleOrderService = (service) => {
-    const newOrd = {
-      id: `SO-${Math.floor(100 + Math.random() * 900)}`,
-      name: `${service.name} x1`,
-      price: service.price,
-      status: 'Đã Tiếp Nhận 🕒'
-    };
-    setMyOrders([newOrd, ...myOrders]);
-    alert(`Đã đặt dịch vụ "${service.name}" cho Phòng 101!`);
-  };
-
   const categoryGridItems = [
     { id: 'hotel', label: 'Khách sạn', icon: '🏨', tone: 'violet' },
     { id: 'tour', label: 'Tour du lịch', icon: '🗺️', tone: 'blue' },
@@ -492,8 +462,7 @@ export default function App() {
     }
 
     if (categoryId === 'services') {
-      setActiveTab('service');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      setConciergeOpen(true);
       return;
     }
 
@@ -620,10 +589,10 @@ export default function App() {
       case 'VIEW_RESTAURANT_MENU':
       case 'ORDER_ROOM_SERVICE':
       case 'BOOK_SPA':
-        setActiveTab('service');
+        alert('Quý khách vui lòng liên hệ trực tiếp quầy lễ tân để được phục vụ tốt nhất.');
         break;
       case 'VIEW_INVOICE':
-        setActiveTab('invoice');
+        setActiveTab('orders');
         break;
       case 'BOOK_TRANSPORT':
         alert('Quý khách vui lòng liên hệ quầy lễ tân (1800-588-879) để đặt xe đón/tiễn sân bay.');
@@ -633,15 +602,16 @@ export default function App() {
     }
   };
 
-  const activeNavTab = ['explore', 'hotel'].includes(activeTab) ? 'home'
-    : ['my-stay', 'invoice'].includes(activeTab) ? 'orders'
-      : activeTab === 'service' ? 'checkin'
-        : activeTab;
+  const activeNavTab = ['explore', 'hotel', 'hotel-results', 'hotel-detail'].includes(activeTab) ? 'home'
+    : activeTab === 'orders' ? 'orders'
+    : activeTab === 'checkin' ? 'checkin'
+    : activeTab === 'account' ? 'account'
+    : 'home';
   const isHotelFlow = ['hotel', 'hotel-results', 'hotel-detail'].includes(activeTab);
 
   const selectNavTab = (tab) => {
-    const destinations = { home: 'explore', orders: 'my-stay', checkin: 'service', account: 'account', more: 'more' };
-    setActiveTab(destinations[tab]);
+    const destinations = { home: 'explore', orders: 'orders', checkin: 'checkin', account: 'account' };
+    setActiveTab(destinations[tab] || 'explore');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -1020,145 +990,75 @@ export default function App() {
         </main>
       )}
 
-      {/* TAB 2: MY STAYS */}
-      {activeTab === 'my-stay' && (
-        <main style={{ padding: '10px 0' }}>
-          <div className="section-title">
-            <span>Chuyến Đi Của Tôi</span>
-          </div>
-
-          <div className="orders-shortcuts">
-            <button type="button" onClick={() => setActiveTab('invoice')}><ReceiptText size={17} /> Hóa đơn & thanh toán</button>
-          </div>
-
-          {myBookings.map(bk => (
-            <div key={bk.id} className="stay-card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span className="status-badge-pwa">{bk.status}</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Mã: {bk.id}</span>
-              </div>
-              <h3 style={{ margin: '10px 0 4px', fontSize: '18px' }}>{bk.roomName}</h3>
-              <p style={{ fontSize: '13px', color: 'var(--gold-light)' }}>Số phòng: <strong>Phòng {bk.roomNumber}</strong></p>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Nhận: {bk.checkIn} | Trả: {bk.checkOut}</p>
-
-              <div className="qr-placeholder">
-                QR ROOM KEY
-              </div>
-              <p style={{ textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)' }}>Chạm QR vào cửa phòng để mở khóa tự động</p>
-            </div>
-          ))}
-        </main>
+      {/* TAB 2: ĐƠN HÀNG (ORDERS) */}
+      {activeTab === 'orders' && (
+        <OrdersTab
+          user={user}
+          localBookings={myBookings}
+          onGoToCheckIn={(booking) => {
+            setCheckInTargetId(booking.id);
+            setCheckInSubTab('online');
+            setActiveTab('checkin');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onGoToQR={(booking) => {
+            setCheckInTargetId(booking.id);
+            setCheckInSubTab('qr');
+            setActiveTab('checkin');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onGoToCheckout={(booking) => {
+            setCheckInTargetId(booking.id);
+            setCheckInSubTab('checkout');
+            setActiveTab('checkin');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onBookAgain={() => {
+            setActiveTab('explore');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onRequireAuth={() => {
+            setAuthMode('login');
+            setAuthModalOpen(true);
+            setAuthError('');
+          }}
+        />
       )}
 
-      {/* TAB 3: ROOM SERVICES */}
-      {activeTab === 'service' && (
-        <main style={{ padding: '10px 0' }}>
-          <div className="section-title">
-            <span>Dịch Vụ Tận Phòng (In-Room Order)</span>
-          </div>
-          <p style={{ padding: '0 18px', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-            Yêu cầu được chuyển trực tiếp tới Bộ Phận Phục Vụ / Lễ Tân
-          </p>
-
-          <div className="service-grid">
-            {serviceCatalog.map(srv => (
-              <div key={srv.id} className="service-card">
-                <div>
-                  <div className="service-icon">{srv.icon}</div>
-                  <div className="service-name">{srv.name}</div>
-                  <div className="service-price">{srv.price.toLocaleString('vi-VN')} đ</div>
-                </div>
-                <button className="btn-order-sm" onClick={() => handleOrderService(srv)}>
-                  + Gọi Dịch Vụ
-                </button>
-              </div>
-            ))}
-          </div>
-
-          <div className="section-title" style={{ marginTop: '24px' }}>
-            <span>Đơn Hàng Dịch Vụ Đã Đặt</span>
-          </div>
-
-          <div style={{ padding: '0 18px' }}>
-            {myOrders.map(ord => (
-              <div key={ord.id} style={{ background: 'var(--bg-card)', padding: '12px 14px', borderRadius: '12px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: '600' }}>{ord.name}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--gold-primary)' }}>{ord.price.toLocaleString('vi-VN')} đ</div>
-                </div>
-                <span style={{ fontSize: '11px', color: 'var(--accent-green)' }}>{ord.status}</span>
-              </div>
-            ))}
-          </div>
-        </main>
+      {/* TAB 3: CHECK-IN */}
+      {activeTab === 'checkin' && (
+        <CheckInTab
+          user={user}
+          localBookings={myBookings}
+          initialSubTab={checkInSubTab}
+          targetBookingId={checkInTargetId}
+          onBookingUpdated={(updated) => {
+            setMyBookings(prev => prev.map(b => b.id === updated.id ? { ...b, ...updated } : b));
+          }}
+          onExploreMore={() => {
+            setActiveTab('explore');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
       )}
 
-      {/* TAB 4: INVOICE */}
-      {activeTab === 'invoice' && (
-        <main style={{ padding: '10px 0' }}>
-          <div className="section-title">
-            <span>Chi Tiết Hóa Đơn & Thanh Toán</span>
-          </div>
-
-          <div className="stay-card" style={{ borderStyle: 'solid' }}>
-            <h3 style={{ fontSize: '16px', marginBottom: '10px', color: 'var(--gold-light)' }}>Hóa Đơn Phòng 101</h3>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '8px' }}>
-              <span>2 Đêm Deluxe Suite:</span>
-              <span>3,000,000 đ</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '8px' }}>
-              <span>1x Bò Bít Tết Wagyu:</span>
-              <span>850,000 đ</span>
-            </div>
-            <hr style={{ borderColor: 'var(--border-color)', margin: '10px 0' }} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: '700' }}>
-              <span>TỔNG CỘNG:</span>
-              <span style={{ color: 'var(--gold-primary)' }}>3,850,000 đ</span>
-            </div>
-            <button className="btn-book" style={{ width: '100%', marginTop: '16px', padding: '12px' }} onClick={() => alert('Đang kết nối cổng thanh toán Momo / VietQR...')}>
-              Thanh Toán Ngay Qua VietQR / MoMo 💳
-            </button>
-          </div>
-        </main>
-      )}
-
+      {/* TAB 4: TÀI KHOẢN (ACCOUNT) */}
       {activeTab === 'account' && (
-        <main className="account-screen">
-          <div className="section-title"><span>Tài khoản</span></div>
-          <section className="account-profile">
-            <div className="account-avatar"><UserRound size={26} /></div>
-            <div className="account-identity">
-              <strong>{user?.full_name || 'Khách LuxStay'}</strong>
-              <span>{user?.email || 'Đăng nhập để quản lý chuyến đi'}</span>
-            </div>
-          </section>
-          {user ? (
-            <>
-              <div className="account-detail-row"><span>Số điện thoại</span><strong>{user.phone || 'Chưa cập nhật'}</strong></div>
-              <button type="button" className="account-action" onClick={clearAuth}><LogOut size={17} /> Đăng xuất</button>
-            </>
-          ) : (
-            <button type="button" className="account-action" onClick={() => { setAuthMode('login'); setAuthModalOpen(true); setAuthError(''); }}>
-              <LogIn size={17} /> Đăng nhập hoặc đăng ký
-            </button>
-          )}
-        </main>
+        <AccountTab
+          user={user}
+          onLogout={clearAuth}
+          onLoginRequest={() => {
+            setAuthMode('login');
+            setAuthModalOpen(true);
+            setAuthError('');
+          }}
+          onGoToBooking={() => {
+            setActiveTab('explore');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+        />
       )}
 
-      {activeTab === 'more' && (
-        <main className="more-screen">
-          <div className="section-title"><span>Thêm</span></div>
-          <button type="button" className="more-action" onClick={() => setConciergeOpen(true)}>
-            <MessageCircle size={19} /><span><strong>LuxBot Concierge</strong><small>Trợ giúp và gợi ý dịch vụ</small></span>
-          </button>
-          <button type="button" className="more-action" onClick={() => setActiveTab('service')}>
-            <KeyRound size={19} /><span><strong>Dịch vụ lưu trú</strong><small>Ẩm thực, spa và tiện ích tại phòng</small></span>
-          </button>
-          <button type="button" className="more-action" onClick={() => setActiveTab('invoice')}>
-            <ReceiptText size={19} /><span><strong>Hóa đơn</strong><small>Xem chi tiết thanh toán</small></span>
-          </button>
-        </main>
-      )}
 
       {/* MODAL: BOOKING — Multi-step BookingFlow */}
       {showBookingModal && (
@@ -1341,13 +1241,10 @@ export default function App() {
           <ClipboardList aria-hidden="true" /><span>Đơn hàng</span>
         </button>
         <button type="button" className={`tab ${activeNavTab === 'checkin' ? 'active' : ''}`} onClick={() => selectNavTab('checkin')} aria-current={activeNavTab === 'checkin' ? 'page' : undefined}>
-          <KeyRound aria-hidden="true" /><span>Check in</span>
+          <KeyRound aria-hidden="true" /><span>Check-in</span>
         </button>
         <button type="button" className={`tab ${activeNavTab === 'account' ? 'active' : ''}`} onClick={() => selectNavTab('account')} aria-current={activeNavTab === 'account' ? 'page' : undefined}>
           <UserRound aria-hidden="true" /><span>Tài khoản</span>
-        </button>
-        <button type="button" className={`tab ${activeNavTab === 'more' ? 'active' : ''}`} onClick={() => selectNavTab('more')} aria-current={activeNavTab === 'more' ? 'page' : undefined}>
-          <MoreHorizontal aria-hidden="true" /><span>Thêm</span>
         </button>
       </nav>}
     </div>

@@ -16,13 +16,11 @@ export default function DefaultLayout({
   user,
   onLogout,
   rooms,
-  bookings,
   housekeeping,
   serviceOrders,
   onUpdateRoomStatus,
   onUpdateTaskStatus,
   onUpdateServiceStatus,
-  onConfirmCheckIn,
   onCreateBooking,
 }) {
   const [activeNav, setActiveNav] = useState('dashboard');
@@ -31,10 +29,10 @@ export default function DefaultLayout({
 
   // Modals state
   const [showNewBookingModal, setShowNewBookingModal] = useState(false);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(null);
   const [newBooking, setNewBooking] = useState({
     customerName: '', phone: '', email: '', roomId: '1', checkIn: '', checkOut: '', note: ''
   });
+
 
   const handleToggleSidebar = () => {
     // If mobile width, toggle drawer, else toggle collapse
@@ -61,19 +59,12 @@ export default function DefaultLayout({
       case 'bookings':
         return (
           <HotelBookings
-            bookings={bookings}
             onOpenNewBooking={() => setShowNewBookingModal(true)}
-            onOpenInvoice={(bk) => setShowInvoiceModal(bk)}
+            onOpenInvoice={() => setActiveNav('invoices')}
           />
         );
       case 'checkin':
-        return (
-          <HotelCheckInOut
-            bookings={bookings}
-            onConfirmCheckIn={onConfirmCheckIn}
-            onOpenInvoice={(bk) => setShowInvoiceModal(bk)}
-          />
-        );
+        return <HotelCheckInOut />;
       case 'housekeeping':
         return (
           <HotelHousekeeping
@@ -89,12 +80,7 @@ export default function DefaultLayout({
           />
         );
       case 'invoices':
-        return (
-          <HotelInvoices
-            bookings={bookings}
-            onOpenInvoice={(bk) => setShowInvoiceModal(bk)}
-          />
-        );
+        return <HotelInvoices />;
       case 'theme-colors':
         return <PlaceholderPage title="Colors" category="Theme" description="Bảng màu sắc chuẩn CoreUI Design Tokens được ứng dụng toàn hệ thống." />;
       case 'theme-typography':
@@ -226,67 +212,7 @@ export default function DefaultLayout({
         </div>
       )}
 
-      {/* MODAL: INVOICE / CHECK-OUT */}
-      {showInvoiceModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content modal-lg">
-            <div className="modal-header">
-              <h3>Hóa Đơn Thanh Toán & Check-Out</h3>
-              <button type="button" className="btn-close" onClick={() => setShowInvoiceModal(null)}>✕</button>
-            </div>
-            <div className="modal-body printable">
-              <div className="invoice-header text-center">
-                <h2>👑 LuxStay Hotel & Resorts</h2>
-                <p>123 Trần Phú, Quận 1, TP. Hồ Chí Minh | Hotline: 1900 8888</p>
-                <hr className="divider" />
-                <h3>HÓA ĐƠN GIAO DỊCH</h3>
-                <p>Mã hóa đơn: <strong>INV-{showInvoiceModal.id}</strong></p>
-              </div>
-
-              <div className="invoice-meta grid-2col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', margin: '16px 0' }}>
-                <div>
-                  <p><strong>Khách hàng:</strong> {showInvoiceModal.customerName}</p>
-                  <p><strong>Số điện thoại:</strong> {showInvoiceModal.phone}</p>
-                </div>
-                <div>
-                  <p><strong>Phòng:</strong> {showInvoiceModal.roomNumber}</p>
-                  <p><strong>Thời gian ở:</strong> {showInvoiceModal.checkIn} đến {showInvoiceModal.checkOut}</p>
-                </div>
-              </div>
-
-              <div className="invoice-summary" style={{ background: '#f8f9fa', padding: '16px', borderRadius: '4px' }}>
-                <p style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Tiền phòng:</span>
-                  <strong>{showInvoiceModal.totalPrice?.toLocaleString('vi-VN')} đ</strong>
-                </p>
-                <p style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Tiền cọc đã trả:</span>
-                  <strong>- {showInvoiceModal.deposit?.toLocaleString('vi-VN')} đ</strong>
-                </p>
-                <hr />
-                <p style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', color: '#321fdb', fontWeight: 'bold' }}>
-                  <span>Cần thanh toán còn lại:</span>
-                  <span>{((showInvoiceModal.totalPrice || 0) - (showInvoiceModal.deposit || 0)).toLocaleString('vi-VN')} đ</span>
-                </p>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-outline" onClick={() => setShowInvoiceModal(null)}>Đóng</button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                style={{ backgroundColor: '#2eb85c', borderColor: '#2eb85c', color: '#fff' }}
-                onClick={() => {
-                  alert('Thanh toán thành công! Trạng thái phòng chuyển sang Cần dọn (Dirty).');
-                  setShowInvoiceModal(null);
-                }}
-              >
-                Xác Nhận Thu Tiền & Check-Out
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Invoice modal đã được chuyển vào HotelInvoices & HotelCheckInOut */}
     </div>
   );
 }

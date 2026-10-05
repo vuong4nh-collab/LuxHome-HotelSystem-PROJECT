@@ -71,14 +71,57 @@ const updateCustomer = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-// DELETE /api/customers/:id (soft delete)
-const deleteCustomer = async (req, res, next) => {
+const getMyProfile = async (req, res, next) => {
   try {
-    const customer = await Customer.findByPk(req.params.id);
-    if (!customer) throw createError('Customer not found', 404);
-    await customer.update({ is_active: false });
-    res.json({ success: true, message: 'Customer deactivated' });
+    let customer = await Customer.findOne({ where: { user_id: req.user.id } });
+    if (!customer) {
+      customer = await Customer.findOne({ where: { email: req.user.email } });
+      if (customer) {
+        await customer.update({ user_id: req.user.id });
+      } else {
+        customer = await Customer.create({
+          user_id: req.user.id,
+          full_name: req.user.full_name || 'Khách hàng LuxStay',
+          email: req.user.email,
+          phone: req.user.phone || '',
+          id_type: 'CCCD',
+          id_number: `CCCD-${req.user.id}-${Date.now().toString().slice(-4)}`,
+          nationality: 'Vietnamese',
+          loyalty_points: 150,
+        });
+      }
+    }
+    res.json({ success: true, data: customer });
   } catch (err) { next(err); }
 };
 
-module.exports = { getAllCustomers, getCustomerById, getCustomerBookings, createCustomer, updateCustomer, deleteCustomer };
+const updateMyProfile = async (req, res, next) => {
+  try {
+    let customer = await Customer.findOne({ where: { user_id: req.user.id } });
+    if (!customer) {
+      customer = await Customer.create({
+        user_id: req.user.id,
+        full_name: req.body.full_name || req.user.full_name,
+        email: req.user.email,
+        phone: req.body.phone || req.user.phone,
+        id_type: req.body.id_type || 'CCCD',
+        id_number: req.body.id_number || `CCCD-${req.user.id}`,
+        nationality: req.body.nationality || 'Vietnamese',
+        address: req.body.address,
+        gender: req.body.gender,
+        date_of_birth: req.body.date_of_birth,
+      });
+    } else {
+      const allowedFields = ['full_name', 'phone', 'address', 'id_type', 'id_number', 'nationality', 'date_of_birth', 'gender'];
+      const updateData = {};
+      allowedFields.forEach((field) => {
+        if (req.body[field] !== undefined) updateData[field] = req.body[field];
+      });
+      await customer.update(updateData);
+    }
+    res.json({ success: true, message: 'Cập nhật hồ sơ thành công', data: customer });
+  } catch (err) { next(err); }
+};
+
+module.exports = { getAllCustomers, getCustomerById, getCustomerBookings, createCustomer, updateCustomer, deleteCustomer, getMyProfile, updateMyProfile };
+

@@ -43,12 +43,7 @@ export default function App() {
     { id: 8, roomNumber: '302', type: 'Executive Suite', price: 2500000, status: 'Reserved', floor: 3, housekeeper: '' },
   ]);
 
-  const [bookings, setBookings] = useState([
-    { id: 'BK1001', customerName: 'Nguyễn Văn Nam', phone: '0901234567', roomNumber: '101', checkIn: '2026-09-12', checkOut: '2026-09-15', status: 'CheckedIn', totalPrice: 4500000, deposit: 1000000 },
-    { id: 'BK1002', customerName: 'Trần Minh Tuấn', phone: '0912345678', roomNumber: '201', checkIn: '2026-09-13', checkOut: '2026-09-16', status: 'Confirmed', totalPrice: 15000000, deposit: 5000000 },
-    { id: 'BK1003', customerName: 'Lê Thị Hoa', phone: '0988776655', roomNumber: '301', checkIn: '2026-09-10', checkOut: '2026-09-14', status: 'CheckedIn', totalPrice: 32000000, deposit: 10000000 },
-    { id: 'BK1004', customerName: 'Phạm Quốc Bảo', phone: '0933445566', roomNumber: '302', checkIn: '2026-09-14', checkOut: '2026-09-17', status: 'Confirmed', totalPrice: 7500000, deposit: 2000000 },
-  ]);
+
 
   const [housekeeping, setHousekeeping] = useState([
     { id: 1, roomNumber: '103', taskType: 'Dọn dẹp phòng check-out', priority: 'High', status: 'InProgress', assignedTo: 'Trần Thị B', note: 'Khách yêu cầu dọn trước 14:00' },
@@ -105,20 +100,17 @@ export default function App() {
     setUser(null);
   };
 
-  const handleCreateBooking = (newBookingData) => {
-    const foundRoom = rooms.find(r => r.id === parseInt(newBookingData.roomId)) || rooms[0];
-    const newBk = {
-      id: `BK${Math.floor(1000 + Math.random() * 9000)}`,
-      customerName: newBookingData.customerName,
-      phone: newBookingData.phone,
-      roomNumber: foundRoom.roomNumber,
-      checkIn: newBookingData.checkIn || new Date().toISOString().split('T')[0],
-      checkOut: newBookingData.checkOut || new Date(Date.now() + 86400000).toISOString().split('T')[0],
-      status: 'Confirmed',
-      totalPrice: foundRoom.price * 2,
-      deposit: foundRoom.price * 0.5
-    };
-    setBookings([newBk, ...bookings]);
+
+  // Tạo booking nhanh tại quầy lễ tân (walk-in) — vẫn dùng API
+  const handleCreateBooking = async (newBookingData) => {
+    try {
+      await import('./services/bookingService').then(({ createBooking }) =>
+        createBooking(newBookingData)
+      );
+    } catch (err) {
+      // fallback: chỉ log lỗi, không crash
+      console.error('Walk-in booking failed:', err);
+    }
   };
 
   const updateRoomStatus = (roomId, newStatus) => {
@@ -131,12 +123,6 @@ export default function App() {
 
   const updateServiceStatus = (serviceId, newStatus) => {
     setServiceOrders(serviceOrders.map(s => s.id === serviceId ? { ...s, status: newStatus } : s));
-  };
-
-  const confirmCheckIn = (booking) => {
-    setBookings(bookings.map(b => b.id === booking.id ? { ...b, status: 'CheckedIn' } : b));
-    const targetRoom = rooms.find(r => r.roomNumber === booking.roomNumber);
-    if (targetRoom) updateRoomStatus(targetRoom.id, 'Occupied');
   };
 
   if (!user) {
@@ -197,13 +183,11 @@ export default function App() {
       user={user}
       onLogout={handleLogout}
       rooms={rooms}
-      bookings={bookings}
       housekeeping={housekeeping}
       serviceOrders={serviceOrders}
       onUpdateRoomStatus={updateRoomStatus}
       onUpdateTaskStatus={updateTaskStatus}
       onUpdateServiceStatus={updateServiceStatus}
-      onConfirmCheckIn={confirmCheckIn}
       onCreateBooking={handleCreateBooking}
     />
   );
