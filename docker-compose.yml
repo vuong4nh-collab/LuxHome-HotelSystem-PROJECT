@@ -20,6 +20,8 @@ services:
       - ./database/migrations/002_hotel_search_demo_rooms.sql:/docker-entrypoint-initdb.d/03-hotel-search-demo-rooms.sql
       - ./database/migrations/003_actor_role_consolidation.sql:/docker-entrypoint-initdb.d/04-actor-role-consolidation.sql
       - ./database/migrations/004_city_location_hotel_search.sql:/docker-entrypoint-initdb.d/05-city-location-hotel-search.sql
+      - ./database/migrations/005_tour_car_unified_order.sql:/docker-entrypoint-initdb.d/06-tour-car-unified-order.sql
+      - ./database/migrations/006_demo_tour_car_orders.sql:/docker-entrypoint-initdb.d/07-demo-tour-car-orders.sql
     networks:
       - hotel_net
     healthcheck:
