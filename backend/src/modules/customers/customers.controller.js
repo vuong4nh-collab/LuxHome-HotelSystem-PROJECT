@@ -71,6 +71,15 @@ const updateCustomer = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const deleteCustomer = async (req, res, next) => {
+  try {
+    const customer = await Customer.findByPk(req.params.id);
+    if (!customer) throw createError('Customer not found', 404);
+    await customer.update({ is_active: false });
+    res.json({ success: true, message: 'Customer deactivated' });
+  } catch (err) { next(err); }
+};
+
 const getMyProfile = async (req, res, next) => {
   try {
     let customer = await Customer.findOne({ where: { user_id: req.user.id } });

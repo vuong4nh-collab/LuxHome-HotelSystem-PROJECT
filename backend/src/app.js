@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const http = require('http');
+const net = require('net');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -25,6 +26,12 @@ const dashboardRoutes    = require('./modules/dashboard/dashboard.routes');
 const notificationsRoutes= require('./modules/notifications/notifications.routes');
 const aiRoutes           = require('./modules/ai/ai.routes');
 const paymentsRoutes     = require('./modules/payments/payments.routes');
+const toursRoutes        = require('./modules/tours/tours.routes');
+const carRentalsRoutes   = require('./modules/car-rentals/car-rentals.routes');
+const ordersRoutes       = require('./modules/orders/orders.routes');
+const ordersController   = require('./modules/orders/orders.controller');
+const toursController    = require('./modules/tours/tours.controller');
+const carRentalsController = require('./modules/car-rentals/car-rentals.controller');
 
 // ── App setup ────────────────────────────────────────────────
 const app = express();
@@ -116,6 +123,16 @@ app.use(`${API}/invoices`,      invoicesRoutes);
 app.use(`${API}/dashboard`,     dashboardRoutes);
 app.use(`${API}/notifications`, notificationsRoutes);
 app.use(`${API}/payments`,    paymentsRoutes);
+app.use(`${API}/tours`,       toursRoutes);
+app.use(`${API}/cars`,        carRentalsRoutes);
+app.use(`${API}/orders`,      ordersRoutes);
+app.post(`${API}/checkout`,   ordersController.checkout);
+
+// City & Location nested endpoints for Tours & Cars
+app.get(`${API}/cities/:cityId/tours`, toursController.getToursByCity);
+app.get(`${API}/locations/:locationId/tours`, toursController.getToursByLocation);
+app.get(`${API}/cities/:cityId/cars`, carRentalsController.getCarsByCity);
+app.get(`${API}/locations/:locationId/cars`, carRentalsController.getCarsByLocation);
 
 // 404 handler
 app.use((req, res) => {
@@ -135,6 +152,33 @@ const RETRYABLE_DB_ERRORS = new Set([
   'EHOSTUNREACH',
   'ENOTFOUND',
 ]);
+
+const getAvailablePort = async (basePort = PORT, maxAttempts = 10) => {
+  let port = Number(basePort);
+  if (!Number.isInteger(port) || port <= 0) {
+    port = 5000;
+  }
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const candidate = port + attempt;
+    const isAvailable = await new Promise((resolve) => {
+      const tester = net.createServer();
+      tester.once('error', (err) => {
+        resolve(err.code !== 'EADDRINUSE');
+      });
+      tester.once('listening', () => {
+        tester.close(() => resolve(true));
+      });
+      tester.listen(candidate, '0.0.0.0');
+    });
+
+    if (isAvailable) {
+      return candidate;
+    }
+  }
+
+  throw new Error(`No free port found starting from ${basePort} after ${maxAttempts} attempts.`);
+};
 
 const startServer = async () => {
   while (true) {
@@ -158,13 +202,19 @@ const startServer = async () => {
   // Sync models (do NOT use force:true in production!)
   // await sequelize.sync({ alter: true });
 
-  server.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Hotel Management API running on port ${PORT}`);
+  const selectedPort = await getAvailablePort(PORT, 10);
+
+  server.listen(selectedPort, '0.0.0.0', () => {
+    console.log(`🚀 Hotel Management API running on port ${selectedPort}`);
     console.log(`📋 Environment: ${process.env.NODE_ENV}`);
-    console.log(`🔗 Health: http://localhost:${PORT}/health`);
+    console.log(`🔗 Health: http://localhost:${selectedPort}/health`);
   });
+
+  return selectedPort;
 };
 
-startServer();
+if (require.main === module) {
+  startServer();
+}
 
-module.exports = { app, io };
+module.exports = { app, io, startServer, getAvailablePort };

@@ -146,6 +146,7 @@ const Room = sequelize.define('Room', {
 // ── Booking ───────────────────────────────────────────────────
 const Booking = sequelize.define('Booking', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  order_id: DataTypes.INTEGER,
   customer_id: { type: DataTypes.INTEGER, allowNull: false },
   hotel_branch_id: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
   room_id: { type: DataTypes.INTEGER, allowNull: false },
@@ -253,8 +254,9 @@ const InvoiceItem = sequelize.define('InvoiceItem', {
 // ── Payment ───────────────────────────────────────────────────
 const Payment = sequelize.define('Payment', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  invoice_id: { type: DataTypes.INTEGER, allowNull: false },
-  hotel_branch_id: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  invoice_id: { type: DataTypes.INTEGER, allowNull: true },
+  order_id: { type: DataTypes.INTEGER, allowNull: true },
+  hotel_branch_id: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 1 },
   amount: { type: DataTypes.DECIMAL(12,2), allowNull: false },
   payment_method: { type: DataTypes.ENUM('Cash','CreditCard','BankTransfer','QRCode','Momo','VNPay'), defaultValue: 'Cash' },
   transaction_ref: DataTypes.STRING(100),
@@ -305,6 +307,125 @@ const ConsultationRequest = sequelize.define('ConsultationRequest', {
   handled_by: DataTypes.INTEGER,
 }, { tableName: 'consultation_requests', updatedAt: false });
 
+// ── Unified Order & OrderItem ─────────────────────────────────
+const Order = sequelize.define('Order', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  customer_id: { type: DataTypes.INTEGER, allowNull: false },
+  order_code: { type: DataTypes.STRING(50), allowNull: false, unique: true },
+  total_amount: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+  discount_amount: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+  final_amount: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+  payment_status: {
+    type: DataTypes.ENUM('UNPAID','PENDING','PAID','FAILED','REFUNDED','PARTIALLY_REFUNDED'),
+    defaultValue: 'UNPAID',
+  },
+  order_status: {
+    type: DataTypes.ENUM('PENDING_PAYMENT','CONFIRMED','IN_PROGRESS','COMPLETED','CANCELLED'),
+    defaultValue: 'PENDING_PAYMENT',
+  },
+  contact_name: DataTypes.STRING(100),
+  contact_email: DataTypes.STRING(100),
+  contact_phone: DataTypes.STRING(20),
+  special_requests: DataTypes.TEXT,
+}, { tableName: 'orders' });
+
+const OrderItem = sequelize.define('OrderItem', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  order_id: { type: DataTypes.INTEGER, allowNull: false },
+  service_type: { type: DataTypes.ENUM('HOTEL','TOUR','CAR_RENTAL'), allowNull: false },
+  service_id: { type: DataTypes.INTEGER, allowNull: false },
+  item_name: { type: DataTypes.STRING(200), allowNull: false },
+  quantity: { type: DataTypes.INTEGER, defaultValue: 1 },
+  unit_price: { type: DataTypes.DECIMAL(12,2), allowNull: false },
+  total_price: { type: DataTypes.DECIMAL(12,2), allowNull: false },
+  metadata: DataTypes.JSON,
+}, { tableName: 'order_items', updatedAt: false });
+
+// ── Tour Models ───────────────────────────────────────────────
+const Tour = sequelize.define('Tour', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  name: { type: DataTypes.STRING(200), allowNull: false },
+  slug: { type: DataTypes.STRING(200), allowNull: false, unique: true },
+  description: DataTypes.TEXT,
+  city_id: { type: DataTypes.INTEGER, allowNull: false },
+  location_id: DataTypes.INTEGER,
+  duration: { type: DataTypes.STRING(50), allowNull: false },
+  price: { type: DataTypes.DECIMAL(12,2), allowNull: false },
+  max_participants: { type: DataTypes.INTEGER, defaultValue: 20 },
+  thumbnail: DataTypes.STRING(255),
+  status: { type: DataTypes.ENUM('Active','Inactive'), defaultValue: 'Active' },
+  cancellation_policy: DataTypes.TEXT,
+}, { tableName: 'tours' });
+
+const TourSchedule = sequelize.define('TourSchedule', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  tour_id: { type: DataTypes.INTEGER, allowNull: false },
+  start_datetime: { type: DataTypes.DATE, allowNull: false },
+  end_datetime: { type: DataTypes.DATE, allowNull: false },
+  available_slots: { type: DataTypes.INTEGER, defaultValue: 20 },
+  booked_slots: { type: DataTypes.INTEGER, defaultValue: 0 },
+  status: { type: DataTypes.ENUM('Open','Full','Cancelled','Completed'), defaultValue: 'Open' },
+  meeting_point: DataTypes.STRING(255),
+}, { tableName: 'tour_schedules' });
+
+const TourItinerary = sequelize.define('TourItinerary', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  tour_id: { type: DataTypes.INTEGER, allowNull: false },
+  sequence: { type: DataTypes.INTEGER, defaultValue: 1 },
+  title: { type: DataTypes.STRING(200), allowNull: false },
+  description: DataTypes.TEXT,
+  start_time: DataTypes.STRING(20),
+  end_time: DataTypes.STRING(20),
+  location: DataTypes.STRING(200),
+}, { tableName: 'tour_itineraries', updatedAt: false });
+
+const TourBooking = sequelize.define('TourBooking', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  order_id: { type: DataTypes.INTEGER, allowNull: false },
+  tour_id: { type: DataTypes.INTEGER, allowNull: false },
+  schedule_id: DataTypes.INTEGER,
+  tour_date: { type: DataTypes.DATEONLY, allowNull: false },
+  number_of_people: { type: DataTypes.INTEGER, defaultValue: 1 },
+  pickup_location: DataTypes.STRING(255),
+  unit_price: { type: DataTypes.DECIMAL(12,2), allowNull: false },
+  total_price: { type: DataTypes.DECIMAL(12,2), allowNull: false },
+  status: { type: DataTypes.ENUM('Pending','Confirmed','Completed','Cancelled'), defaultValue: 'Pending' },
+}, { tableName: 'tour_bookings' });
+
+// ── Car Rental Models ─────────────────────────────────────────
+const Car = sequelize.define('Car', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  name: { type: DataTypes.STRING(150), allowNull: false },
+  brand: { type: DataTypes.STRING(80), allowNull: false },
+  model: { type: DataTypes.STRING(80), allowNull: false },
+  type: { type: DataTypes.ENUM('Sedan','SUV','Hatchback','MPV','Pickup','Luxury'), defaultValue: 'SUV' },
+  seats: { type: DataTypes.INTEGER, defaultValue: 5 },
+  transmission: { type: DataTypes.ENUM('Automatic','Manual'), defaultValue: 'Automatic' },
+  fuel_type: { type: DataTypes.ENUM('Electric','Petrol','Diesel'), defaultValue: 'Petrol' },
+  price_per_day: { type: DataTypes.DECIMAL(12,2), allowNull: false },
+  city_id: { type: DataTypes.INTEGER, allowNull: false },
+  location_id: DataTypes.INTEGER,
+  image: DataTypes.STRING(255),
+  description: DataTypes.TEXT,
+  status: { type: DataTypes.ENUM('Available','Rented','Maintenance'), defaultValue: 'Available' },
+}, { tableName: 'cars' });
+
+const CarRentalBooking = sequelize.define('CarRentalBooking', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  order_id: { type: DataTypes.INTEGER, allowNull: false },
+  car_id: { type: DataTypes.INTEGER, allowNull: false },
+  pickup_location: DataTypes.STRING(255),
+  dropoff_location: DataTypes.STRING(255),
+  pickup_datetime: { type: DataTypes.DATE, allowNull: false },
+  return_datetime: { type: DataTypes.DATE, allowNull: false },
+  rental_days: { type: DataTypes.INTEGER, defaultValue: 1 },
+  driver_required: { type: DataTypes.BOOLEAN, defaultValue: false },
+  driver_fee: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
+  price_per_day: { type: DataTypes.DECIMAL(12,2), allowNull: false },
+  total_price: { type: DataTypes.DECIMAL(12,2), allowNull: false },
+  status: { type: DataTypes.ENUM('Pending','Confirmed','Active','Completed','Cancelled'), defaultValue: 'Pending' },
+}, { tableName: 'car_rental_bookings' });
+
 // ════════════════════════════════════════════════════════════
 // ASSOCIATIONS
 // ════════════════════════════════════════════════════════════
@@ -345,6 +466,52 @@ Booking.belongsTo(Room, { foreignKey: 'room_id', as: 'room' });
 HotelBranch.hasMany(Booking, { foreignKey: 'hotel_branch_id', as: 'bookings' });
 Booking.belongsTo(HotelBranch, { foreignKey: 'hotel_branch_id', as: 'branch' });
 
+// Unified Order Associations
+Customer.hasMany(Order, { foreignKey: 'customer_id', as: 'orders' });
+Order.belongsTo(Customer, { foreignKey: 'customer_id', as: 'customer' });
+
+Order.hasMany(OrderItem, { foreignKey: 'order_id', as: 'items' });
+OrderItem.belongsTo(Order, { foreignKey: 'order_id', as: 'order' });
+
+Order.hasMany(Booking, { foreignKey: 'order_id', as: 'hotelBookings' });
+Booking.belongsTo(Order, { foreignKey: 'order_id', as: 'order' });
+
+Order.hasMany(TourBooking, { foreignKey: 'order_id', as: 'tourBookings' });
+TourBooking.belongsTo(Order, { foreignKey: 'order_id', as: 'order' });
+
+Order.hasMany(CarRentalBooking, { foreignKey: 'order_id', as: 'carRentals' });
+CarRentalBooking.belongsTo(Order, { foreignKey: 'order_id', as: 'order' });
+
+Order.hasMany(Payment, { foreignKey: 'order_id', as: 'payments' });
+Payment.belongsTo(Order, { foreignKey: 'order_id', as: 'order' });
+
+// Tour Associations
+City.hasMany(Tour, { foreignKey: 'city_id', as: 'tours' });
+Tour.belongsTo(City, { foreignKey: 'city_id', as: 'city' });
+Location.hasMany(Tour, { foreignKey: 'location_id', as: 'tours' });
+Tour.belongsTo(Location, { foreignKey: 'location_id', as: 'location' });
+
+Tour.hasMany(TourSchedule, { foreignKey: 'tour_id', as: 'schedules' });
+TourSchedule.belongsTo(Tour, { foreignKey: 'tour_id', as: 'tour' });
+
+Tour.hasMany(TourItinerary, { foreignKey: 'tour_id', as: 'itineraries' });
+TourItinerary.belongsTo(Tour, { foreignKey: 'tour_id', as: 'tour' });
+
+Tour.hasMany(TourBooking, { foreignKey: 'tour_id', as: 'bookings' });
+TourBooking.belongsTo(Tour, { foreignKey: 'tour_id', as: 'tour' });
+TourSchedule.hasMany(TourBooking, { foreignKey: 'schedule_id', as: 'bookings' });
+TourBooking.belongsTo(TourSchedule, { foreignKey: 'schedule_id', as: 'schedule' });
+
+// Car Rental Associations
+City.hasMany(Car, { foreignKey: 'city_id', as: 'cars' });
+Car.belongsTo(City, { foreignKey: 'city_id', as: 'city' });
+Location.hasMany(Car, { foreignKey: 'location_id', as: 'cars' });
+Car.belongsTo(Location, { foreignKey: 'location_id', as: 'location' });
+
+Car.hasMany(CarRentalBooking, { foreignKey: 'car_id', as: 'rentals' });
+CarRentalBooking.belongsTo(Car, { foreignKey: 'car_id', as: 'car' });
+
+// Service / Housekeeping / Invoice
 Booking.hasMany(ServiceOrder, { foreignKey: 'booking_id' });
 ServiceOrder.belongsTo(Booking, { foreignKey: 'booking_id', as: 'booking' });
 HotelBranch.hasMany(ServiceOrder, { foreignKey: 'hotel_branch_id', as: 'serviceOrders' });
@@ -387,4 +554,7 @@ module.exports = {
   HousekeepingTask,
   Invoice, InvoiceItem, Payment,
   Notification, Review, ConsultationRequest,
+  Order, OrderItem,
+  Tour, TourSchedule, TourItinerary, TourBooking,
+  Car, CarRentalBooking,
 };

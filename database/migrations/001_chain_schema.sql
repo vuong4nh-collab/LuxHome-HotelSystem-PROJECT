@@ -80,7 +80,7 @@ SET @sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEM
 PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 ALTER TABLE roles
-    MODIFY COLUMN name ENUM('Admin','Manager','Receptionist','Housekeeping','Customer','ChainAdmin','AreaManager','PropertyManager') NOT NULL;
+    MODIFY COLUMN name ENUM('Admin','Manager','Receptionist','Staff','Housekeeping','Customer','ChainAdmin','AreaManager','PropertyManager') NOT NULL;
 
 SET @sql = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'hotel_branch_id') = 0,
     'ALTER TABLE users ADD COLUMN hotel_branch_id INT NULL', 'SELECT 1');

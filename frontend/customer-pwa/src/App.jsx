@@ -6,6 +6,8 @@ import BookingFlow from './components/BookingFlow';
 import OrdersTab from './components/OrdersTab';
 import CheckInTab from './components/CheckInTab';
 import AccountTab from './components/AccountTab';
+import TourSection from './components/TourSection';
+import CarSection from './components/CarSection';
 
 const AUTH_STORAGE_KEY = 'luxstay_customer_token';
 const USER_STORAGE_KEY = 'luxstay_customer_user';
@@ -382,6 +384,18 @@ export default function App() {
   }, [homeNotice]);
 
   const [myBookings, setMyBookings] = useState([]);
+  const [tripItems, setTripItems] = useState([]);
+
+  const handleAddTripItem = (item, mode = 'add') => {
+    setTripItems((prev) => [...prev, item]);
+    const itemLabel = item.type === 'tour' ? 'Tour du lịch' : item.type === 'car' ? 'Thuê xe' : 'Dịch vụ';
+    setHomeNotice(mode === 'checkout'
+      ? `${itemLabel} đã được thêm vào chuyến đi và sẵn sàng thanh toán.`
+      : `${itemLabel} đã được thêm vào chuyến đi.`);
+    if (mode === 'checkout') {
+      setActiveTab('orders');
+    }
+  };
 
   const handleAuthSubmit = async (event) => {
     event.preventDefault();
@@ -461,14 +475,24 @@ export default function App() {
       return;
     }
 
+    if (categoryId === 'tour') {
+      setActiveTab('tour');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (categoryId === 'car') {
+      setActiveTab('car');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
     if (categoryId === 'services') {
       setConciergeOpen(true);
       return;
     }
 
-    setHomeNotice(categoryId === 'tour'
-      ? 'Tour du lịch sẽ sớm có mặt trên LuxHome.'
-      : 'Dịch vụ thuê xe sẽ sớm có mặt trên LuxHome.');
+    setHomeNotice('Dịch vụ này đang được chuẩn bị.');
   };
 
   const openDestinationPicker = () => {
@@ -602,7 +626,7 @@ export default function App() {
     }
   };
 
-  const activeNavTab = ['explore', 'hotel', 'hotel-results', 'hotel-detail'].includes(activeTab) ? 'home'
+  const activeNavTab = ['explore', 'hotel', 'hotel-results', 'hotel-detail', 'tour', 'car'].includes(activeTab) ? 'home'
     : activeTab === 'orders' ? 'orders'
     : activeTab === 'checkin' ? 'checkin'
     : activeTab === 'account' ? 'account'
@@ -681,6 +705,24 @@ export default function App() {
             </div>
           </section>
 
+        </main>
+      )}
+
+      {activeTab === 'tour' && (
+        <main className="travel-page-shell">
+          <TourSection
+            onAddToCart={(item) => handleAddTripItem(item, 'add')}
+            onDirectCheckout={(item) => handleAddTripItem(item, 'checkout')}
+          />
+        </main>
+      )}
+
+      {activeTab === 'car' && (
+        <main className="travel-page-shell">
+          <CarSection
+            onAddToCart={(item) => handleAddTripItem(item, 'add')}
+            onDirectCheckout={(item) => handleAddTripItem(item, 'checkout')}
+          />
         </main>
       )}
 
