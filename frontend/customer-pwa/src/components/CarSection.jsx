@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   Car as CarIcon, MapPin, Calendar, Users, Fuel, Gauge, ShieldCheck,
-  Search, Star, Check, Plus, ShoppingBag, X, UserCheck, Zap, Sparkles
+  Search, Star, Check, Plus, ShoppingBag, X, UserCheck, Zap, Sparkles, AlertCircle, RefreshCw
 } from 'lucide-react';
 import api from '../api';
+import AccessibleDialog from './AccessibleDialog.jsx';
 
 const CITIES = [
   { id: 'all', name: 'Tất cả' },
@@ -25,6 +26,7 @@ const VEHICLE_TYPES = [
 export default function CarSection({ onAddToCart, onDirectCheckout }) {
   const [cars, setCars] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [selectedCity, setSelectedCity] = useState('all');
   const [selectedType, setSelectedType] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -50,14 +52,20 @@ export default function CarSection({ onAddToCart, onDirectCheckout }) {
 
   const fetchCars = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const params = {};
       if (selectedCity !== 'all') params.city_id = selectedCity;
       if (selectedType !== 'all') params.carType = selectedType;
       const res = await api.get('/cars', { params });
-      setCars(res.data?.data || []);
+      if (!Array.isArray(res.data?.data)) {
+        throw new Error('Dữ liệu xe trả về không hợp lệ.');
+      }
+      setCars(res.data.data);
     } catch (err) {
       console.warn('Could not load cars:', err);
+      setCars([]);
+      setLoadError(err.response?.data?.message || 'Không thể tải danh sách xe. Vui lòng kiểm tra kết nối và thử lại.');
     } finally {
       setLoading(false);
     }
@@ -183,6 +191,14 @@ export default function CarSection({ onAddToCart, onDirectCheckout }) {
             <div className="spinner"></div>
             <p>Đang tải dàn xe du lịch...</p>
           </div>
+        ) : loadError ? (
+          <div className="data-load-error" role="alert">
+            <AlertCircle size={20} aria-hidden="true" />
+            <p>{loadError}</p>
+            <button type="button" onClick={fetchCars}>
+              <RefreshCw size={15} aria-hidden="true" /> Thử lại
+            </button>
+          </div>
         ) : cars.length === 0 ? (
           <div className="travel-empty-box">
             <CarIcon size={40} />
@@ -191,7 +207,7 @@ export default function CarSection({ onAddToCart, onDirectCheckout }) {
         ) : (
           <div className="travel-card-grid">
             {cars.map((car) => (
-              <div key={car.id} className="travel-card car-card" onClick={() => handleOpenDetail(car)}>
+              <div key={car.id} className="travel-card car-card">
                 <div className="travel-card-media car-media">
                   <img src={car.image} alt={car.name} loading="lazy" />
                   <span className="dest-tag">
@@ -231,10 +247,7 @@ export default function CarSection({ onAddToCart, onDirectCheckout }) {
                     <button
                       type="button"
                       className="card-action-btn car-accent"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenDetail(car);
-                      }}
+                      onClick={() => handleOpenDetail(car)}
                     >
                       Chọn Thuê
                     </button>
@@ -248,12 +261,18 @@ export default function CarSection({ onAddToCart, onDirectCheckout }) {
 
       {/* Car Detail & Booking Modal */}
       {selectedCar && (
-        <div className="travel-modal-backdrop" onClick={() => setSelectedCar(null)}>
+        <AccessibleDialog
+          className="travel-modal-backdrop"
+          ariaLabelledBy="car-detail-title"
+          onClose={() => setSelectedCar(null)}
+          onClick={(event) => event.target === event.currentTarget && setSelectedCar(null)}
+        >
           <div className="travel-modal-card" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               className="modal-close-icon-btn"
               onClick={() => setSelectedCar(null)}
+              aria-label="Đóng chi tiết xe"
             >
               <X size={20} />
             </button>
@@ -264,7 +283,7 @@ export default function CarSection({ onAddToCart, onDirectCheckout }) {
                 <span className="modal-city-tag">
                   <MapPin size={12} /> {selectedCar.city?.name}
                 </span>
-                <h3>{selectedCar.name}</h3>
+                <h3 id="car-detail-title">{selectedCar.name}</h3>
                 <div className="hero-meta-row">
                   <span><Users size={14} /> {selectedCar.seats} Ghế ngồi</span>
                   <span><Gauge size={14} /> Hộp số {selectedCar.transmission === 'Automatic' ? 'Tự động' : 'Số sàn'}</span>
@@ -331,9 +350,11 @@ export default function CarSection({ onAddToCart, onDirectCheckout }) {
                 </div>
 
                 {/* Driver Option */}
-                <div
+                <button
+                  type="button"
                   className={`driver-option-card ${driverRequired ? 'active' : ''}`}
                   onClick={() => setDriverRequired(!driverRequired)}
+                  aria-pressed={driverRequired}
                 >
                   <div className="driver-option-left">
                     <div className="checkbox-custom">
@@ -350,7 +371,7 @@ export default function CarSection({ onAddToCart, onDirectCheckout }) {
                     +{(driverFeePerDay * rentalDays).toLocaleString('vi-VN')} đ
                     <small>({driverFeePerDay.toLocaleString('vi-VN')} đ/ngày)</small>
                   </div>
-                </div>
+                </button>
 
                 {/* Price breakdown */}
                 <div className="price-breakdown-box">
@@ -397,7 +418,7 @@ export default function CarSection({ onAddToCart, onDirectCheckout }) {
               </div>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
     </div>
   );

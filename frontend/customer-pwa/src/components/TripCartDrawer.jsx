@@ -1,4 +1,5 @@
 import React from 'react';
+import AccessibleDialog from './AccessibleDialog.jsx';
 import {
   Luggage, Trash2, ArrowRight, X, BedDouble, Compass, Car,
   Calendar, Users, MapPin, CheckCircle2, ShieldCheck
@@ -16,18 +17,23 @@ export default function TripCartDrawer({
   const totalAmount = tripItems.reduce((sum, item) => sum + Number(item.totalPrice || 0), 0);
 
   return (
-    <div className="trip-drawer-backdrop" onClick={onClose}>
+    <AccessibleDialog
+      className="trip-drawer-backdrop"
+      ariaLabelledBy="trip-cart-title"
+      onClose={onClose}
+      onClick={(event) => event.target === event.currentTarget && onClose()}
+    >
       <div className="trip-drawer-panel" onClick={(e) => e.stopPropagation()}>
         {/* Drawer Header */}
         <div className="trip-drawer-header">
           <div className="header-title-box">
             <Luggage size={22} className="header-icon" />
             <div>
-              <h3>Chuyến Đi Của Bạn</h3>
+              <h3 id="trip-cart-title">Chuyến Đi Của Bạn</h3>
               <p>{tripItems.length} dịch vụ đã sẵn sàng đặt chung</p>
             </div>
           </div>
-          <button type="button" className="drawer-close-btn" onClick={onClose}>
+          <button type="button" className="drawer-close-btn" onClick={onClose} aria-label="Đóng giỏ chuyến đi">
             <X size={20} />
           </button>
         </div>
@@ -90,6 +96,7 @@ export default function TripCartDrawer({
                           type="button"
                           className="btn-remove-item"
                           title="Xóa dịch vụ này"
+                          aria-label={`Xóa ${item.name} khỏi chuyến đi`}
                           onClick={() => onRemoveItem(item.id)}
                         >
                           <Trash2 size={16} />
@@ -131,6 +138,6 @@ export default function TripCartDrawer({
           </div>
         )}
       </div>
-    </div>
+    </AccessibleDialog>
   );
 }

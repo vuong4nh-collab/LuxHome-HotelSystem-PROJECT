@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import AccessibleDialog from './AccessibleDialog.jsx';
 import {
   clearConciergeConversation,
   fetchConciergeHealth,
@@ -148,25 +149,28 @@ export default function ConciergeChat({
 
   return (
     <>
-      {!open && (
-        <div className="concierge-fab-anchor">
-          <button
-            type="button"
-            className="concierge-fab"
-            onClick={() => setOpen(true)}
-            aria-label="Mở trợ lý LuxBot"
-          >
-            <span className="concierge-fab-icon">💬</span>
-            <span className="concierge-fab-label">LuxBot</span>
-          </button>
-        </div>
-      )}
+      <div className="concierge-fab-anchor" style={open ? { display: 'none' } : undefined}>
+        <button
+          type="button"
+          className="concierge-fab"
+          onClick={() => setOpen(true)}
+          aria-label="Mở trợ lý LuxBot"
+          tabIndex={open ? -1 : 0}
+        >
+          <span className="concierge-fab-icon">💬</span>
+          <span className="concierge-fab-label">LuxBot</span>
+        </button>
+      </div>
 
       {open && (
-        <div className="concierge-panel" role="dialog" aria-label="LuxStay AI Concierge">
+        <AccessibleDialog
+          className="concierge-panel"
+          ariaLabelledBy="concierge-dialog-title"
+          onClose={() => setOpen(false)}
+        >
           <header className="concierge-header">
             <div>
-              <div className="concierge-title">
+              <div className="concierge-title" id="concierge-dialog-title" role="heading" aria-level="2">
                 <span>🤖</span> LuxBot Concierge
               </div>
               <div className="concierge-subtitle">
@@ -174,7 +178,7 @@ export default function ConciergeChat({
               </div>
             </div>
             <div className="concierge-header-actions">
-              <button type="button" className="concierge-icon-btn" onClick={handleReset} title="Cuộc trò chuyện mới">
+              <button type="button" className="concierge-icon-btn" onClick={handleReset} title="Cuộc trò chuyện mới" aria-label="Bắt đầu cuộc trò chuyện mới">
                 ↺
               </button>
               <button type="button" className="concierge-icon-btn" onClick={() => setOpen(false)} aria-label="Đóng">
@@ -248,7 +252,7 @@ export default function ConciergeChat({
               Gửi
             </button>
           </form>
-        </div>
+        </AccessibleDialog>
       )}
     </>
   );

@@ -4,6 +4,7 @@ import {
   BedDouble, Compass, Car, ArrowRight, CheckCircle2, Copy
 } from 'lucide-react';
 import api from '../api';
+import AccessibleDialog from './AccessibleDialog.jsx';
 
 const PAYMENT_METHODS = [
   { id: 'BankTransfer', name: 'Chuyển Khoản Ngân Hàng (VietQR)', icon: QrCode, desc: 'Quét mã QR thanh toán nhanh 24/7' },
@@ -19,8 +20,6 @@ export default function UnifiedCheckoutModal({
   user,
   onSuccess,
 }) {
-  if (!isOpen) return null;
-
   const [customerName, setCustomerName] = useState(user?.full_name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [email, setEmail] = useState(user?.email || '');
@@ -116,10 +115,17 @@ export default function UnifiedCheckoutModal({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  if (!isOpen) return null;
+
   return (
-    <div className="unified-checkout-backdrop" onClick={onClose}>
+    <AccessibleDialog
+      className="unified-checkout-backdrop"
+      ariaLabelledBy={createdOrder ? 'checkout-success-title' : 'checkout-dialog-title'}
+      onClose={onClose}
+      onClick={(event) => event.target === event.currentTarget && onClose()}
+    >
       <div className="unified-checkout-modal" onClick={(e) => e.stopPropagation()}>
-        <button type="button" className="modal-close-btn" onClick={onClose}>
+        <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Đóng thanh toán">
           <X size={20} />
         </button>
 
@@ -130,7 +136,7 @@ export default function UnifiedCheckoutModal({
               <CheckCircle2 size={56} color="#16A34A" />
             </div>
 
-            <h3>Đặt Đơn Hàng Thành Công!</h3>
+            <h3 id="checkout-success-title">Đặt Đơn Hàng Thành Công!</h3>
             <p className="success-desc">
               Mã đơn hàng: <strong className="order-code-pill">{createdOrder.order_code}</strong>
             </p>
@@ -181,9 +187,14 @@ export default function UnifiedCheckoutModal({
                   </div>
                   <div className="bank-info-line">
                     <span>Nội dung chuyển khoản:</span>
-                    <span className="copyable-code" onClick={() => handleCopy(createdOrder.order_code)}>
+                    <button
+                      type="button"
+                      className="copyable-code"
+                      onClick={() => handleCopy(createdOrder.order_code)}
+                      aria-label={`Sao chép mã đơn hàng ${createdOrder.order_code}`}
+                    >
                       {createdOrder.order_code} <Copy size={13} />
-                    </span>
+                    </button>
                   </div>
                 </div>
                 {copied && <span className="copy-notice">Đã sao chép nội dung chuyển khoản!</span>}
@@ -202,12 +213,12 @@ export default function UnifiedCheckoutModal({
           /* Checkout Form View */
           <form onSubmit={handleSubmit} className="checkout-form-view">
             <div className="checkout-modal-header">
-              <h2>Xác Nhận & Đặt Toàn Bộ Chuyến Đi</h2>
+              <h2 id="checkout-dialog-title">Xác Nhận & Đặt Toàn Bộ Chuyến Đi</h2>
               <p>Một đơn hàng duy nhất cho trọn gói phòng, tour du lịch & thuê xe</p>
             </div>
 
             {error && (
-              <div className="checkout-alert-error">
+              <div className="checkout-alert-error" role="alert">
                 <AlertCircle size={18} /> {error}
               </div>
             )}
@@ -314,10 +325,12 @@ export default function UnifiedCheckoutModal({
                     const Icon = pm.icon;
                     const isSelected = selectedPayment === pm.id;
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={pm.id}
                         className={`payment-option-card ${isSelected ? 'active' : ''}`}
                         onClick={() => setSelectedPayment(pm.id)}
+                        aria-pressed={isSelected}
                       >
                         <div className="option-radio">
                           {isSelected && <div className="radio-dot" />}
@@ -328,7 +341,7 @@ export default function UnifiedCheckoutModal({
                           </div>
                           <p className="option-desc">{pm.desc}</p>
                         </div>
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -353,6 +366,6 @@ export default function UnifiedCheckoutModal({
           </form>
         )}
       </div>
-    </div>
+    </AccessibleDialog>
   );
 }

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   Compass, MapPin, Calendar, Users, Clock, ShieldCheck, ChevronRight,
-  Search, Star, Check, Plus, ShoppingBag, X, Sparkles
+  Search, Star, Check, Plus, ShoppingBag, X, Sparkles, AlertCircle, RefreshCw
 } from 'lucide-react';
 import api from '../api';
+import AccessibleDialog from './AccessibleDialog.jsx';
 
 const CITIES = [
   { id: 'all', name: 'Tất cả', icon: '✨' },
@@ -17,6 +18,7 @@ const CITIES = [
 export default function TourSection({ onAddToCart, onDirectCheckout }) {
   const [tours, setTours] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
   const [selectedCity, setSelectedCity] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTour, setSelectedTour] = useState(null);
@@ -36,14 +38,20 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
 
   const fetchTours = async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const params = {};
       if (selectedCity !== 'all') params.city_id = selectedCity;
       if (searchQuery.trim()) params.search = searchQuery.trim();
       const res = await api.get('/tours', { params });
-      setTours(res.data?.data || []);
+      if (!Array.isArray(res.data?.data)) {
+        throw new Error('Dữ liệu tour trả về không hợp lệ.');
+      }
+      setTours(res.data.data);
     } catch (err) {
       console.warn('Could not load tours:', err);
+      setTours([]);
+      setLoadError(err.response?.data?.message || 'Không thể tải danh sách tour. Vui lòng kiểm tra kết nối và thử lại.');
     } finally {
       setLoading(false);
     }
@@ -170,6 +178,14 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
             <div className="spinner"></div>
             <p>Đang tìm tour du lịch phù hợp...</p>
           </div>
+        ) : loadError ? (
+          <div className="data-load-error" role="alert">
+            <AlertCircle size={20} aria-hidden="true" />
+            <p>{loadError}</p>
+            <button type="button" onClick={fetchTours}>
+              <RefreshCw size={15} aria-hidden="true" /> Thử lại
+            </button>
+          </div>
         ) : tours.length === 0 ? (
           <div className="travel-empty-box">
             <Compass size={40} />
@@ -178,7 +194,7 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
         ) : (
           <div className="travel-card-grid">
             {tours.map((tour) => (
-              <div key={tour.id} className="travel-card" onClick={() => handleOpenDetail(tour)}>
+              <div key={tour.id} className="travel-card">
                 <div className="travel-card-media">
                   <img src={tour.thumbnail} alt={tour.name} loading="lazy" />
                   <span className="dest-tag">
@@ -215,10 +231,7 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
                     <button
                       type="button"
                       className="card-action-btn primary"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenDetail(tour);
-                      }}
+                      onClick={() => handleOpenDetail(tour)}
                     >
                       Chi Tiết & Đặt
                     </button>
@@ -232,12 +245,18 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
 
       {/* Tour Detail Modal */}
       {selectedTour && (
-        <div className="travel-modal-backdrop" onClick={() => setSelectedTour(null)}>
+        <AccessibleDialog
+          className="travel-modal-backdrop"
+          ariaLabelledBy="tour-detail-title"
+          onClose={() => setSelectedTour(null)}
+          onClick={(event) => event.target === event.currentTarget && setSelectedTour(null)}
+        >
           <div className="travel-modal-card" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               className="modal-close-icon-btn"
               onClick={() => setSelectedTour(null)}
+              aria-label="Đóng chi tiết tour"
             >
               <X size={20} />
             </button>
@@ -248,7 +267,7 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
                 <span className="modal-city-tag">
                   <MapPin size={12} /> {selectedTour.city?.name}
                 </span>
-                <h3>{selectedTour.name}</h3>
+                <h3 id="tour-detail-title">{selectedTour.name}</h3>
                 <div className="hero-meta-row">
                   <span><Clock size={14} /> {selectedTour.duration}</span>
                   <span><Users size={14} /> Tối đa {selectedTour.max_participants} người</span>
@@ -310,9 +329,11 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
                       const remaining = sc.available_slots - sc.booked_slots;
 
                       return (
-                        <div
+                        <button
+                          type="button"
                           key={sc.id}
                           className={`schedule-card-pill ${isSel ? 'selected' : ''}`}
+                          aria-pressed={isSel}
                           onClick={() => {
                             setSelectedScheduleId(sc.id);
                             setTourDate(dateObj.toISOString().slice(0, 10));
@@ -323,7 +344,7 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
                           {sc.meeting_point && (
                             <div className="sched-point">Đón: {sc.meeting_point}</div>
                           )}
-                        </div>
+                        </button>
                       );
                     })}
                   </div>
@@ -352,6 +373,7 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
                         type="button"
                         className="counter-btn"
                         onClick={() => setNumPeople(Math.max(1, numPeople - 1))}
+                        aria-label="Giảm số người"
                       >
                         -
                       </button>
@@ -360,6 +382,7 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
                         type="button"
                         className="counter-btn"
                         onClick={() => setNumPeople(numPeople + 1)}
+                        aria-label="Tăng số người"
                       >
                         +
                       </button>
@@ -412,7 +435,7 @@ export default function TourSection({ onAddToCart, onDirectCheckout }) {
               </div>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
     </div>
   );

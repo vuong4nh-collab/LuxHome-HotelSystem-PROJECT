@@ -5,6 +5,7 @@ import {
   Compass, Car, ShieldAlert, Sparkles, X, Copy, Phone, User
 } from 'lucide-react';
 import api from '../api';
+import AccessibleDialog from './AccessibleDialog.jsx';
 
 const STATUS_TABS = [
   { id: 'pending', label: 'Chờ thanh toán', matchStatuses: ['PENDING_PAYMENT', 'Pending'] },
@@ -35,18 +36,26 @@ export default function OrdersTab({
     setLoading(true);
     setError('');
     try {
-      // First try unified orders endpoint
       const res = await api.get('/orders');
-      const orderList = res.data?.data || [];
+      const orderList = res.data?.data;
+      if (!Array.isArray(orderList)) {
+        throw new Error('Dữ liệu đơn hàng trả về không hợp lệ.');
+      }
 
       if (orderList.length > 0) {
         setOrders(orderList);
-      } else if (user) {
-        // Fallback: check if legacy bookings exist and wrap them
-        const bkRes = await api.get('/bookings/my').catch(() => null);
-        const legacyBookings = bkRes?.data?.data || [];
+        return;
+      }
+
+      if (user) {
+        const bkRes = await api.get('/bookings/my');
+        const legacyBookings = bkRes.data?.data;
+        if (!Array.isArray(legacyBookings)) {
+          throw new Error('Dữ liệu đặt phòng trả về không hợp lệ.');
+        }
+
         if (legacyBookings.length > 0) {
-          const wrapped = legacyBookings.map((b) => ({
+          setOrders(legacyBookings.map((b) => ({
             id: b.id,
             order_code: `BK${String(b.id).padStart(4, '0')}`,
             order_status: b.status === 'CheckedIn' ? 'IN_PROGRESS' : b.status === 'CheckedOut' ? 'COMPLETED' : b.status === 'Cancelled' ? 'CANCELLED' : 'CONFIRMED',
@@ -66,17 +75,18 @@ export default function OrdersTab({
                 total_price: Number(b.room_price_total || 0),
               },
             ],
-          }));
-          setOrders(wrapped);
+          })));
         } else {
           setOrders(localOrders || []);
         }
-      } else {
-        setOrders(localOrders || []);
+        return;
       }
+
+      setOrders(localOrders || []);
     } catch (err) {
       console.warn('Could not load orders:', err);
       setOrders(localOrders || []);
+      setError(err.response?.data?.message || 'Không thể tải danh sách đơn hàng. Vui lòng kiểm tra kết nối và thử lại.');
     } finally {
       setLoading(false);
     }
@@ -175,13 +185,22 @@ export default function OrdersTab({
 
       {/* Main Content Area */}
       <div className="orders-content-area">
+        {!loading && error && (
+          <div className="data-load-error" role="alert">
+            <AlertCircle size={20} aria-hidden="true" />
+            <p>{error}{orders.length > 0 ? ' Đang hiển thị dữ liệu đã lưu cục bộ; hãy thử tải lại để đồng bộ.' : ''}</p>
+            <button type="button" onClick={fetchOrders}>
+              <RefreshCw size={15} aria-hidden="true" /> Thử lại
+            </button>
+          </div>
+        )}
         {loading ? (
           <div className="orders-loading-state">
             <RefreshCw size={24} className="spin-icon" />
             <p>Đang tải danh sách đơn hàng hợp nhất...</p>
           </div>
         ) : filteredOrders.length === 0 ? (
-          <div className="orders-empty-state">
+          error ? null : <div className="orders-empty-state">
             <ReceiptText size={48} />
             <h4>Chưa có đơn hàng nào</h4>
             <p>
@@ -203,7 +222,6 @@ export default function OrdersTab({
                 <div
                   key={ord.id}
                   className="unified-order-card"
-                  onClick={() => setSelectedOrder(ord)}
                 >
                   {/* Card Header */}
                   <div className="order-card-header">
@@ -303,7 +321,12 @@ export default function OrdersTab({
                           <QrCode size={14} /> Thanh Toán
                         </button>
                       )}
-                      <button type="button" className="btn-card-detail">
+                      <button
+                        type="button"
+                        className="btn-card-detail"
+                        onClick={() => setSelectedOrder(ord)}
+                        aria-label={`Xem chi tiết đơn hàng ${ord.order_code}`}
+                      >
                         Chi Tiết <ChevronRight size={14} />
                       </button>
                     </div>
@@ -317,19 +340,25 @@ export default function OrdersTab({
 
       {/* Order Detail Modal */}
       {selectedOrder && (
-        <div className="order-detail-backdrop" onClick={() => setSelectedOrder(null)}>
+        <AccessibleDialog
+          className="order-detail-backdrop"
+          ariaLabelledBy="order-detail-title"
+          onClose={() => setSelectedOrder(null)}
+          onClick={(event) => event.target === event.currentTarget && setSelectedOrder(null)}
+        >
           <div className="order-detail-modal" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               className="modal-close-btn"
               onClick={() => setSelectedOrder(null)}
+              aria-label="Đóng chi tiết đơn hàng"
             >
               <X size={20} />
             </button>
 
             <div className="detail-modal-header">
               <span className="detail-pill">ĐƠN HÀNG HỢP NHẤT</span>
-              <h2>{selectedOrder.order_code}</h2>
+              <h2 id="order-detail-title">{selectedOrder.order_code}</h2>
               <div className="detail-status-row">
                 <span className="status-label">Trạng thái: <strong>{selectedOrder.order_status}</strong></span>
                 <span className="pay-status-label">Thanh toán: <strong>{selectedOrder.payment_status}</strong></span>
@@ -488,20 +517,25 @@ export default function OrdersTab({
               )}
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Payment QR Modal */}
       {showPaymentModal && (
-        <div className="order-detail-backdrop" onClick={() => setShowPaymentModal(null)}>
+        <AccessibleDialog
+          className="order-detail-backdrop"
+          ariaLabelledBy="order-payment-title"
+          onClose={() => setShowPaymentModal(null)}
+          onClick={(event) => event.target === event.currentTarget && setShowPaymentModal(null)}
+        >
           <div className="qr-pay-modal" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="modal-close-btn" onClick={() => setShowPaymentModal(null)}>
+            <button type="button" className="modal-close-btn" onClick={() => setShowPaymentModal(null)} aria-label="Đóng thanh toán đơn hàng">
               <X size={20} />
             </button>
 
             <div className="qr-pay-header">
               <QrCode size={24} className="text-purple" />
-              <h3>Thanh Toán Đơn Hàng</h3>
+              <h3 id="order-payment-title">Thanh Toán Đơn Hàng</h3>
               <p>Mã đơn: <strong>{showPaymentModal.order_code}</strong></p>
             </div>
 
@@ -520,9 +554,14 @@ export default function OrdersTab({
                 <div><span>Số tiền:</span> <strong className="text-price">{Number(showPaymentModal.final_amount).toLocaleString('vi-VN')} đ</strong></div>
                 <div>
                   <span>Nội dung:</span>
-                  <strong className="copyable-pill" onClick={() => handleCopy(showPaymentModal.order_code)}>
+                  <button
+                    type="button"
+                    className="copyable-pill"
+                    onClick={() => handleCopy(showPaymentModal.order_code)}
+                    aria-label={`Sao chép nội dung chuyển khoản ${showPaymentModal.order_code}`}
+                  >
                     {showPaymentModal.order_code} <Copy size={12} />
-                  </strong>
+                  </button>
                 </div>
               </div>
               {copied && <p className="copy-tag">Đã sao chép nội dung chuyển khoản!</p>}
@@ -538,15 +577,20 @@ export default function OrdersTab({
               </button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Cancel Confirmation Modal */}
       {showCancelModal && (
-        <div className="order-detail-backdrop" onClick={() => setShowCancelModal(null)}>
+        <AccessibleDialog
+          className="order-detail-backdrop"
+          ariaLabelledBy="order-cancel-title"
+          onClose={() => !cancelLoading && setShowCancelModal(null)}
+          onClick={(event) => event.target === event.currentTarget && !cancelLoading && setShowCancelModal(null)}
+        >
           <div className="cancel-confirm-modal" onClick={(e) => e.stopPropagation()}>
             <ShieldAlert size={36} color="#DC2626" />
-            <h3>Xác Nhận Hủy Đơn Hàng?</h3>
+            <h3 id="order-cancel-title">Xác Nhận Hủy Đơn Hàng?</h3>
             <p>
               Đơn hàng <strong>{showCancelModal.order_code}</strong> sẽ được hủy theo chính sách hoàn tiền tương ứng cho từng dịch vụ (Khách sạn, Tour, Thuê xe).
             </p>
@@ -570,7 +614,7 @@ export default function OrdersTab({
               </button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
     </div>
   );

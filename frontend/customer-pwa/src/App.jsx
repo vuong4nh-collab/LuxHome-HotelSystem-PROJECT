@@ -1,13 +1,16 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Home, ClipboardList, KeyRound, UserRound, CalendarDays, MapPin, Search, ArrowRight, ArrowLeft } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Home, ClipboardList, KeyRound, UserRound, CalendarDays, MapPin, Search, ArrowRight, ArrowLeft, Users, Minus, Plus, Tag, ShoppingBag, AlertCircle, RefreshCw } from 'lucide-react';
 import api from './api';
 import ConciergeChat from './components/ConciergeChat.jsx';
 import BookingFlow from './components/BookingFlow.jsx';
+import TripCartDrawer from './components/TripCartDrawer.jsx';
+import UnifiedCheckoutModal from './components/UnifiedCheckoutModal.jsx';
 import OrdersTab from './components/OrdersTab.jsx';
 import CheckInTab from './components/CheckInTab.jsx';
 import AccountTab from './components/AccountTab.jsx';
 import TourSection from './components/TourSection.jsx';
 import CarSection from './components/CarSection.jsx';
+import AccessibleDialog from './components/AccessibleDialog.jsx';
 
 const AUTH_STORAGE_KEY = 'luxstay_customer_token';
 const USER_STORAGE_KEY = 'luxstay_customer_user';
@@ -107,6 +110,11 @@ export default function App() {
   });
   const [authLoading, setAuthLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('explore');
+  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
+  const [waitingServiceWorker, setWaitingServiceWorker] = useState(null);
+  const [applyingServiceWorkerUpdate, setApplyingServiceWorkerUpdate] = useState(false);
+  const waitingServiceWorkerRef = useRef(null);
+  const applyingServiceWorkerUpdateRef = useRef(false);
   const [checkInSubTab, setCheckInSubTab] = useState('online');
   const [checkInTargetId, setCheckInTargetId] = useState(null);
   const [conciergeOpen, setConciergeOpen] = useState(false);
@@ -127,6 +135,8 @@ export default function App() {
   const [selectedHotel, setSelectedHotel] = useState(null);
   const [hotelsLoading, setHotelsLoading] = useState(false);
   const [hotelSearchError, setHotelSearchError] = useState('');
+  const [hotelSearchAttempt, setHotelSearchAttempt] = useState(0);
+  const [hotelRoomAvailabilityError, setHotelRoomAvailabilityError] = useState('');
   const [hotelFilterOpen, setHotelFilterOpen] = useState(false);
   const [minimumStars, setMinimumStars] = useState(0);
   const [maximumPrice, setMaximumPrice] = useState(10000000);
@@ -200,7 +210,10 @@ export default function App() {
       hotel_branch_id: branchId,
     };
     const { data } = await api.get('/rooms/available', { params });
-    return (data?.data || []).map(mapAvailableRoom);
+    if (!Array.isArray(data?.data)) {
+      throw new Error('Dữ liệu phòng trả về không hợp lệ.');
+    }
+    return data.data.map(mapAvailableRoom);
   };
 
   const persistAuth = (token, userData) => {
@@ -304,6 +317,7 @@ export default function App() {
     const searchHotels = async () => {
       setHotelsLoading(true);
       setHotelSearchError('');
+      setHotelRoomAvailabilityError('');
       setHotelResults([]);
 
       try {
@@ -316,10 +330,14 @@ export default function App() {
           hotelId: selectedHotelId || undefined,
         };
         const { data } = await api.get('/hotels/search', { params });
-        let hotels = data?.data || [];
+        if (!Array.isArray(data?.data)) {
+          throw new Error('Dữ liệu khách sạn trả về không hợp lệ.');
+        }
+        let hotels = data.data;
         if (selectedHotelId) hotels = hotels.filter((hotel) => String(hotel.id) === selectedHotelId);
         hotels = hotels.filter((hotel) => !hotel.status || hotel.status === 'Active');
 
+        let roomAvailabilityFailed = false;
         const results = await Promise.all(hotels.map(async (hotel) => {
           const hotelBranches = (hotel.branches || branches.filter((branch) => String(branch.hotel_id) === String(hotel.id)))
             .filter((branch) => !selectedDestinationCity || normalizePlace(branch.city) === normalizePlace(selectedDestinationCity));
@@ -327,6 +345,7 @@ export default function App() {
             try {
               return { branch, rooms: await fetchAvailableRoomsForBranch(branch.id) };
             } catch {
+              roomAvailabilityFailed = true;
               return { branch, rooms: [] };
             }
           }));
@@ -351,11 +370,16 @@ export default function App() {
           };
         }));
 
-        if (isCurrentSearch) setHotelResults(results);
+        if (isCurrentSearch) {
+          setHotelResults(results);
+          if (roomAvailabilityFailed) {
+            setHotelRoomAvailabilityError('Không thể tải tình trạng phòng của một số khách sạn. Hãy thử tải lại để kiểm tra phòng còn trống.');
+          }
+        }
       } catch (error) {
         if (isCurrentSearch) {
           setHotelResults([]);
-          setHotelSearchError(error.response?.data?.message || 'Không thể tải danh sách khách sạn lúc này.');
+          setHotelSearchError(error.response?.data?.message || error.message || 'Không thể tải danh sách khách sạn lúc này.');
         }
       } finally {
         if (isCurrentSearch) setHotelsLoading(false);
@@ -364,7 +388,7 @@ export default function App() {
 
     searchHotels();
     return () => { isCurrentSearch = false; };
-  }, [activeTab, selectedDestinationCity, selectedDestinationCitySlug, selectedDestinationLocationSlug, selectedHotelId, bookingForm.checkIn, bookingForm.checkOut, hotelGuestCounts.adults, hotelGuestCounts.children]);
+  }, [activeTab, hotelSearchAttempt, selectedDestinationCity, selectedDestinationCitySlug, selectedDestinationLocationSlug, selectedHotelId, bookingForm.checkIn, bookingForm.checkOut, hotelGuestCounts.adults, hotelGuestCounts.children]);
 
   useEffect(() => {
     if (!user) return;
@@ -385,16 +409,83 @@ export default function App() {
 
   const [myBookings, setMyBookings] = useState([]);
   const [tripItems, setTripItems] = useState([]);
+  const [tripCartOpen, setTripCartOpen] = useState(false);
+  const [tripCheckoutOpen, setTripCheckoutOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return undefined;
+
+    let isActive = true;
+    let registration;
+
+    const handleControllerChange = () => {
+      if (applyingServiceWorkerUpdateRef.current) window.location.reload();
+    };
+
+    const handleUpdateFound = () => {
+      const installingWorker = registration?.installing;
+      if (!installingWorker) return;
+
+      installingWorker.addEventListener('statechange', () => {
+        if (isActive && installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
+          const waitingWorker = registration.waiting || installingWorker;
+          waitingServiceWorkerRef.current = waitingWorker;
+          setWaitingServiceWorker(waitingWorker);
+        }
+      });
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+    navigator.serviceWorker.register('/sw.js')
+      .then((serviceWorkerRegistration) => {
+        if (!isActive) return;
+        registration = serviceWorkerRegistration;
+        if (registration.waiting && navigator.serviceWorker.controller) {
+          waitingServiceWorkerRef.current = registration.waiting;
+          setWaitingServiceWorker(registration.waiting);
+        }
+        registration.addEventListener('updatefound', handleUpdateFound);
+      })
+      .catch((error) => console.error('PWA ServiceWorker registration failed:', error));
+
+    const applyUpdate = () => {
+      if (!waitingServiceWorkerRef.current) return;
+      applyingServiceWorkerUpdateRef.current = true;
+      setApplyingServiceWorkerUpdate(true);
+      waitingServiceWorkerRef.current.postMessage({ type: 'SKIP_WAITING' });
+    };
+
+    window.addEventListener('pwa-apply-update', applyUpdate);
+    return () => {
+      isActive = false;
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      registration?.removeEventListener('updatefound', handleUpdateFound);
+      window.removeEventListener('pwa-apply-update', applyUpdate);
+    };
+  }, []);
 
   const handleAddTripItem = (item, mode = 'add') => {
     setTripItems((prev) => [...prev, item]);
     const itemLabel = item.type === 'tour' ? 'Tour du lịch' : item.type === 'car' ? 'Thuê xe' : 'Dịch vụ';
-    setHomeNotice(mode === 'checkout'
-      ? `${itemLabel} đã được thêm vào chuyến đi và sẵn sàng thanh toán.`
-      : `${itemLabel} đã được thêm vào chuyến đi.`);
     if (mode === 'checkout') {
-      setActiveTab('orders');
+      setTripCartOpen(false);
+      setTripCheckoutOpen(true);
+      return;
     }
+
+    setHomeNotice(`${itemLabel} đã được thêm vào chuyến đi.`);
   };
 
   const handleAuthSubmit = async (event) => {
@@ -641,6 +732,21 @@ export default function App() {
 
   return (
     <div className={`pwa-container ${isHotelFlow ? 'hotel-flow-active' : ''}`}>
+      {isOffline && (
+        <div className="pwa-network-notice" role="status" aria-live="polite">
+          Bạn đang ngoại tuyến. Các thao tác cần máy chủ sẽ không hoạt động cho đến khi có mạng.
+        </div>
+      )}
+      {waitingServiceWorker && (
+        <div className="pwa-update-notice" role="status" aria-live="polite">
+          <span>{applyingServiceWorkerUpdate ? 'Đang cập nhật ứng dụng...' : 'Có phiên bản LuxHome mới.'}</span>
+          {!applyingServiceWorkerUpdate && (
+            <button type="button" onClick={() => window.dispatchEvent(new Event('pwa-apply-update'))}>
+              Tải lại để cập nhật
+            </button>
+          )}
+        </div>
+      )}
       {!isHotelFlow && <header className={`pwa-header ${activeTab === 'explore' ? 'pwa-header-home' : ''}`}>
         <div className="brand-logo">
           <span className="crown-icon">👋</span>
@@ -653,12 +759,34 @@ export default function App() {
         {user ? (
           <div className="header-user-wrap">
             <span className="header-user-name">{user.full_name || 'Khách hàng'}</span>
+            {tripItems.length > 0 && (
+              <button
+                type="button"
+                className="header-logout-btn"
+                aria-label={`Mở chuyến đi, ${tripItems.length} dịch vụ`}
+                onClick={() => setTripCartOpen(true)}
+              >
+                <ShoppingBag size={15} aria-hidden="true" /> {tripItems.length}
+              </button>
+            )}
             <button type="button" className="header-logout-btn" onClick={clearAuth}>Đăng xuất</button>
           </div>
         ) : (
-          <button type="button" className="header-guest-login-btn" onClick={() => { setAuthMode('login'); setAuthModalOpen(true); setAuthError(''); }}>
-            Đăng nhập
-          </button>
+          <div className="header-user-wrap">
+            {tripItems.length > 0 && (
+              <button
+                type="button"
+                className="header-logout-btn"
+                aria-label={`Mở chuyến đi, ${tripItems.length} dịch vụ`}
+                onClick={() => setTripCartOpen(true)}
+              >
+                <ShoppingBag size={15} aria-hidden="true" /> {tripItems.length}
+              </button>
+            )}
+            <button type="button" className="header-guest-login-btn" onClick={() => { setAuthMode('login'); setAuthModalOpen(true); setAuthError(''); }}>
+              Đăng nhập
+            </button>
+          </div>
         )}
 
   </header>}
@@ -817,23 +945,25 @@ export default function App() {
               )}
             </section>
 
-            <section className={`hotel-detail-card hotel-promo-card ${promoExpanded ? 'is-expanded' : ''}`}>
-              <Tag className="hotel-detail-icon" size={20} aria-hidden="true" />
-              <button type="button" className="hotel-promo-trigger" onClick={() => setPromoExpanded((expanded) => !expanded)} aria-expanded={promoExpanded}>
-                <span><strong>Mã ưu đãi</strong><small>{promoCode || 'Chọn hoặc nhập mã'}</small></span>
-                <ArrowRight size={18} aria-hidden="true" />
-              </button>
-              {promoExpanded && (
-                <input
-                  className="hotel-promo-input"
-                  type="text"
-                  placeholder="Nhập mã ưu đãi"
-                  value={promoCode}
-                  onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
-                  aria-label="Mã ưu đãi"
-                />
-              )}
-            </section>
+            {user && (
+              <section className={`hotel-detail-card hotel-promo-card ${promoExpanded ? 'is-expanded' : ''}`}>
+                <Tag className="hotel-detail-icon" size={20} aria-hidden="true" />
+                <button type="button" className="hotel-promo-trigger" onClick={() => setPromoExpanded((expanded) => !expanded)} aria-expanded={promoExpanded}>
+                  <span><strong>Mã ưu đãi</strong><small>{promoCode || 'Chọn hoặc nhập mã'}</small></span>
+                  <ArrowRight size={18} aria-hidden="true" />
+                </button>
+                {promoExpanded && (
+                  <input
+                    className="hotel-promo-input"
+                    type="text"
+                    placeholder="Nhập mã ưu đãi"
+                    value={promoCode}
+                    onChange={(event) => setPromoCode(event.target.value.toUpperCase())}
+                    aria-label="Mã ưu đãi"
+                  />
+                )}
+              </section>
+            )}
 
             {(hotelSearchError || roomsError) && <p className="hotel-form-error" role="alert">{hotelSearchError || roomsError}</p>}
             <button type="submit" className="hotel-search-button">Tìm kiếm</button>
@@ -842,18 +972,23 @@ export default function App() {
       )}
 
       {destinationPickerOpen && activeTab === 'hotel' && (
-        <section className="destination-picker-overlay" aria-label="Chọn điểm đến">
+        <AccessibleDialog
+          as="section"
+          className="destination-picker-overlay"
+          ariaLabelledBy="destination-picker-title"
+          onClose={() => setDestinationPickerOpen(false)}
+        >
           <header className="hotel-search-header">
             <button type="button" className="hotel-search-back" onClick={() => setDestinationPickerOpen(false)} aria-label="Quay lại tìm kiếm">
               <ArrowLeft size={21} />
             </button>
-            <h1>Chọn điểm đến</h1>
+            <h1 id="destination-picker-title">Chọn điểm đến</h1>
             <span className="hotel-search-header-spacer" aria-hidden="true" />
           </header>
           <label className="destination-picker-search">
             <Search size={18} aria-hidden="true" />
             <input
-              autoFocus
+              data-dialog-autofocus
               type="search"
               placeholder="Tìm địa điểm, khu vực hoặc khách sạn"
               value={destinationSearch}
@@ -905,7 +1040,7 @@ export default function App() {
               <p className="destination-no-results">Không tìm thấy địa điểm hoặc khách sạn phù hợp.</p>
             )}
           </div>
-        </section>
+        </AccessibleDialog>
       )}
 
       {activeTab === 'hotel-results' && (
@@ -930,10 +1065,25 @@ export default function App() {
             <span>{filteredHotelResults.length} khách sạn</span>
           </div>
 
+          {hotelRoomAvailabilityError && !hotelsLoading && !hotelSearchError && (
+            <div className="data-load-error" role="alert">
+              <AlertCircle size={20} aria-hidden="true" />
+              <p>{hotelRoomAvailabilityError}</p>
+              <button type="button" onClick={() => setHotelSearchAttempt((attempt) => attempt + 1)}>
+                <RefreshCw size={15} aria-hidden="true" /> Thử tải lại
+              </button>
+            </div>
+          )}
+
           {hotelsLoading ? (
             <div className="rooms-empty">Đang tìm khách sạn phù hợp...</div>
           ) : hotelSearchError ? (
-            <div className="rooms-error" role="alert">{hotelSearchError}</div>
+            <div className="rooms-error" role="alert">
+              <p>{hotelSearchError}</p>
+              <button type="button" onClick={() => setHotelSearchAttempt((attempt) => attempt + 1)}>
+                <RefreshCw size={15} aria-hidden="true" /> Thử lại
+              </button>
+            </div>
           ) : filteredHotelResults.length === 0 ? (
             <div className="rooms-empty">Không tìm thấy khách sạn phù hợp với lựa chọn này.</div>
           ) : (
@@ -964,8 +1114,13 @@ export default function App() {
 
           {hotelFilterOpen && (
             <div className="hotel-overlay" role="presentation" onClick={(event) => event.target === event.currentTarget && setHotelFilterOpen(false)}>
-              <section className="hotel-filter-sheet" role="dialog" aria-modal="true" aria-label="Bộ lọc khách sạn">
-                <header><h2>Bộ lọc</h2><button type="button" onClick={() => setHotelFilterOpen(false)} aria-label="Đóng bộ lọc">×</button></header>
+              <AccessibleDialog
+                as="section"
+                className="hotel-filter-sheet"
+                ariaLabelledBy="hotel-filter-title"
+                onClose={() => setHotelFilterOpen(false)}
+              >
+                <header><h2 id="hotel-filter-title">Bộ lọc khách sạn</h2><button type="button" onClick={() => setHotelFilterOpen(false)} aria-label="Đóng bộ lọc">×</button></header>
                 <label className="hotel-filter-price">
                   <span>Giá tối đa mỗi đêm</span>
                   <strong>{formatCurrency(maximumPrice)}</strong>
@@ -980,16 +1135,21 @@ export default function App() {
                   ))}</div>
                 </div>
                 <button type="button" className="hotel-filter-apply" onClick={() => setHotelFilterOpen(false)}>Xem {filteredHotelResults.length} khách sạn</button>
-              </section>
+              </AccessibleDialog>
             </div>
           )}
 
           {mapOpen && (
             <div className="hotel-overlay" role="presentation" onClick={(event) => event.target === event.currentTarget && setMapOpen(false)}>
-              <section className="hotel-map-sheet" role="dialog" aria-modal="true" aria-label="Bản đồ khách sạn">
-                <header><h2>Bản đồ · {selectedDestinationCity}</h2><button type="button" onClick={() => setMapOpen(false)} aria-label="Đóng bản đồ">×</button></header>
+              <AccessibleDialog
+                as="section"
+                className="hotel-map-sheet"
+                ariaLabelledBy="hotel-map-title"
+                onClose={() => setMapOpen(false)}
+              >
+                <header><h2 id="hotel-map-title">Bản đồ · {selectedDestinationCity}</h2><button type="button" onClick={() => setMapOpen(false)} aria-label="Đóng bản đồ">×</button></header>
                 <iframe title={`Bản đồ ${selectedDestinationCity}`} src={`https://maps.google.com/maps?q=${encodeURIComponent(selectedDestinationCity)}&output=embed`} loading="lazy" />
-              </section>
+              </AccessibleDialog>
             </div>
           )}
         </main>
@@ -1164,6 +1324,27 @@ export default function App() {
         />
       )}
 
+      <TripCartDrawer
+        isOpen={tripCartOpen}
+        onClose={() => setTripCartOpen(false)}
+        tripItems={tripItems}
+        onRemoveItem={(itemId) => setTripItems((items) => items.filter((item) => item.id !== itemId))}
+        onProceedCheckout={() => setTripCheckoutOpen(true)}
+      />
+
+      {tripCheckoutOpen && (
+        <UnifiedCheckoutModal
+          isOpen
+          onClose={() => setTripCheckoutOpen(false)}
+          items={tripItems}
+          user={user}
+          onSuccess={() => {
+            setTripItems([]);
+            setActiveTab('orders');
+          }}
+        />
+      )}
+
       {!isHotelFlow && (
         <ConciergeChat
           open={conciergeOpen}
@@ -1174,11 +1355,15 @@ export default function App() {
       )}
 
       {!user && authModalOpen && (
-        <div className="modal-pwa auth-modal">
+        <AccessibleDialog
+          className="modal-pwa auth-modal"
+          ariaLabelledBy="auth-dialog-title"
+          onClose={() => setAuthModalOpen(false)}
+        >
           <div className="modal-pwa-content auth-dialog">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ fontSize: '18px' }}>Đăng nhập để xác nhận đặt phòng</h3>
-              <button style={{ background: 'none', border: 'none', color: '#fff', fontSize: '20px' }} onClick={() => setAuthModalOpen(false)}>✕</button>
+              <h3 id="auth-dialog-title" style={{ fontSize: '18px' }}>Đăng nhập để xác nhận đặt phòng</h3>
+              <button type="button" style={{ background: 'none', border: 'none', color: '#fff', fontSize: '20px' }} onClick={() => setAuthModalOpen(false)} aria-label="Đóng đăng nhập">✕</button>
             </div>
 
             <div className="auth-toggle">
@@ -1272,7 +1457,7 @@ export default function App() {
               </button>
             </form>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {!isHotelFlow && <nav className="tabbar" aria-label="Điều hướng chính">

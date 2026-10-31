@@ -19,6 +19,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import api from "../api";
+import AccessibleDialog from "./AccessibleDialog.jsx";
 
 /* ─────────────────────────────────────────────────────────────
    Config theo payment-flow-config.json
@@ -390,16 +391,21 @@ export default function BookingFlow({
   const isStep1Valid = contactInfo.fullName.trim() && contactInfo.email.trim() && contactInfo.phone.trim();
 
   return (
-    <div className="bf-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <AccessibleDialog
+      className="bf-overlay"
+      ariaLabelledBy="booking-flow-dialog-title"
+      onClose={onClose}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
       <div className="bf-modal">
 
         {/* ── Header ─────────────────────────────────────────── */}
         <div className="bf-modal-header">
-          <div className="bf-modal-title">
+          <div className="bf-modal-title" id="booking-flow-dialog-title" role="heading" aria-level="2">
             <span className="bf-room-name">{room?.name}</span>
             <span className="bf-room-sub">{nights} đêm · {formatCurrency(basePrice)}</span>
           </div>
-          <button className="bf-close-btn" onClick={onClose} aria-label="Đóng">
+          <button type="button" className="bf-close-btn" onClick={onClose} aria-label="Đóng đặt phòng">
             <X size={20} />
           </button>
         </div>
@@ -696,6 +702,6 @@ export default function BookingFlow({
           </div>
         </div>
       </div>
-    </div>
+    </AccessibleDialog>
   );
 }
