@@ -37,13 +37,17 @@ const carRentalsController = require('./modules/car-rentals/car-rentals.controll
 const app = express();
 const server = http.createServer(app);
 
+// ── CORS Origins (AUD-018) ──────────────────────────────────
+const allowedOrigins = [
+  process.env.CLIENT_STAFF_URL,
+  process.env.CLIENT_CUSTOMER_URL,
+  ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3001', 'http://localhost:3002', 'http://localhost:3000'] : []),
+].filter(Boolean);
+
 // ── Socket.IO ────────────────────────────────────────────────
 const io = new Server(server, {
   cors: {
-    origin: [
-      process.env.CLIENT_STAFF_URL || 'http://localhost:3001',
-      process.env.CLIENT_CUSTOMER_URL || 'http://localhost:3002',
-    ],
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
   },
@@ -76,14 +80,12 @@ io.on('connection', (socket) => {
 // ── Middlewares ───────────────────────────────────────────────
 app.use(helmet({ crossOriginEmbedderPolicy: false }));
 app.use(cors({
-  origin: [
-    process.env.CLIENT_STAFF_URL || 'http://localhost:3001',
-    process.env.CLIENT_CUSTOMER_URL || 'http://localhost:3002',
-    'http://localhost:3000',
-  ],
+  origin: allowedOrigins,
   credentials: true,
 }));
-app.use(morgan('combined'));
+morgan.token('sanitized-url', (req) => String(req.originalUrl || req.url || '').split('?')[0]);
+
+app.use(morgan(':remote-addr - :remote-user [:date[clf]] ":method :sanitized-url HTTP/:http-version" :status :res[content-length] ":referrer" ":user-agent"'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

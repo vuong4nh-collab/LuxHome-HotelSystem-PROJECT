@@ -3,31 +3,38 @@ import api from './api';
 import DefaultLayout from './layout/DefaultLayout';
 
 export default function App() {
-  const [user, setUser] = useState(() => {
-    const saved = localStorage.getItem('luxstay_user') || localStorage.getItem('hotel_user');
-    return saved ? JSON.parse(saved) : { id: 1, fullName: 'Admin Manager', role: 'Admin', email: 'admin@luxstay.com' };
-  });
-  const [token, setToken] = useState(() => localStorage.getItem('luxstay_token') || localStorage.getItem('hotel_token') || 'mock-jwt-token');
+  const [user, setUser] = useState(null);
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [loginError, setLoginError] = useState('');
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    localStorage.removeItem('luxstay_token');
+    localStorage.removeItem('hotel_token');
     // If previous 401 redirect left '/login' in URL, clean it up without reload
     if (window.location.pathname === '/login') {
       window.history.replaceState({}, '', '/');
     }
 
     const handleUnauthorized = () => {
-      localStorage.removeItem('luxstay_token');
       localStorage.removeItem('luxstay_user');
-      localStorage.removeItem('hotel_token');
       localStorage.removeItem('hotel_user');
       setUser(null);
-      setToken('');
     };
 
     window.addEventListener('auth:unauthorized', handleUnauthorized);
+    api.get('/auth/me').then(({ data }) => {
+      const currentUser = data?.data;
+      if (currentUser) {
+        localStorage.setItem('luxstay_user', JSON.stringify(currentUser));
+        localStorage.setItem('hotel_user', JSON.stringify(currentUser));
+        setUser(currentUser);
+      } else {
+        handleUnauthorized();
+      }
+    }).catch((error) => {
+      if (error.response?.status === 401) handleUnauthorized();
+    });
     return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
   }, []);
 
@@ -62,42 +69,32 @@ export default function App() {
     setLoginError('');
     setLoading(true);
     try {
-      const res = await api.post('/auth/login', loginForm);
-      const { token: userToken, user: userData } = res.data;
-      localStorage.setItem('luxstay_token', userToken);
-      localStorage.setItem('hotel_token', userToken);
+      const res = await api.post('/auth/login', {
+        email: loginForm.username,
+        password: loginForm.password,
+      });
+      const userData = res.data?.data?.user;
+      if (!userData) throw new Error('Phản hồi xác thực không hợp lệ.');
       localStorage.setItem('luxstay_user', JSON.stringify(userData));
       localStorage.setItem('hotel_user', JSON.stringify(userData));
-      setToken(userToken);
       setUser(userData);
-    } catch {
-      // Mock login for offline/demo if server is unavailable
-      const mockRoles = { admin: 'Admin', manager: 'Manager', receptionist: 'Receptionist', staff: 'Staff' };
-      if (mockRoles[loginForm.username]) {
-        const role = mockRoles[loginForm.username];
-        const mockUser = { id: 1, fullName: `${role} Demo`, role, email: `${loginForm.username}@luxstay.com` };
-        const mockToken = 'mock-jwt-token-123456';
-        localStorage.setItem('luxstay_token', mockToken);
-        localStorage.setItem('hotel_token', mockToken);
-        localStorage.setItem('luxstay_user', JSON.stringify(mockUser));
-        localStorage.setItem('hotel_user', JSON.stringify(mockUser));
-        setToken(mockToken);
-        setUser(mockUser);
-      } else {
-        setLoginError('Tên đăng nhập hoặc mật khẩu không chính xác. Thử lại với tài khoản: admin');
-      }
+    } catch (error) {
+      setLoginError(error.response?.data?.message || error.message || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('luxstay_token');
-    localStorage.removeItem('luxstay_user');
-    localStorage.removeItem('hotel_token');
-    localStorage.removeItem('hotel_user');
-    setToken('');
-    setUser(null);
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.warn('Could not revoke the server session during logout:', error.message);
+    } finally {
+      localStorage.removeItem('luxstay_user');
+      localStorage.removeItem('hotel_user');
+      setUser(null);
+    }
   };
 
 
@@ -142,11 +139,11 @@ export default function App() {
 
           <form onSubmit={handleLogin} className="login-form">
             <div className="form-group">
-              <label>Tên đăng nhập / Email</label>
+              <label>Email</label>
               <input
                 type="text"
                 className="form-control"
-                placeholder="Nhập admin, manager, receptionist hoặc staff"
+                placeholder="email@luxstay.vn"
                 value={loginForm.username}
                 onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
                 required
@@ -171,7 +168,7 @@ export default function App() {
           </form>
 
           <div className="login-footer">
-            <p>Tài khoản demo: admin, manager, receptionist hoặc staff | Mật khẩu bất kỳ khi API không kết nối</p>
+            <p>Đăng nhập bằng email và mật khẩu tài khoản nhân viên được cấp.</p>
           </div>
         </div>
       </div>

@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Booking, Customer, Room, RoomType, Invoice, Notification } = require('../../models');
+const { sequelize, Booking, Customer, Room, RoomType, Invoice, Notification } = require('../../models');
 const { createError } = require('../../middlewares/errorHandler');
 
 // GET /api/bookings
@@ -37,12 +37,24 @@ const getBookingById = async (req, res, next) => {
       ],
     });
     if (!booking) throw createError('Booking not found', 404);
+
+    // AUD-008: Chống IDOR — Khách hàng chỉ được xem booking của chính mình
+    const isStaff = req.user && ['Admin', 'Manager', 'Receptionist'].includes(req.user.role?.name);
+    if (!isStaff) {
+      const cust = await Customer.findOne({ where: { user_id: req.user.id } });
+      if (!cust || booking.customer_id !== cust.id) {
+        throw createError('Bạn không có quyền truy cập đặt phòng này', 403);
+      }
+    }
+
     res.json({ success: true, data: booking });
   } catch (err) { next(err); }
 };
 
 // POST /api/bookings
 const createBooking = async (req, res, next) => {
+  // AUD-004: Dùng transaction + pessimistic lock để tránh race condition overbooking
+  const transaction = await sequelize.transaction();
   try {
     const {
       customer_id,
@@ -60,7 +72,7 @@ const createBooking = async (req, res, next) => {
     let targetCustomerId = customer_id;
     if (!targetCustomerId) {
       if (guest_email) {
-        let customer = await Customer.findOne({ where: { email: guest_email } });
+        let customer = await Customer.findOne({ where: { email: guest_email }, transaction });
         if (!customer) {
           customer = await Customer.create({
             full_name: guest_name || 'Khách vãng lai',
@@ -69,25 +81,29 @@ const createBooking = async (req, res, next) => {
             id_type: 'Other',
             id_number: `GUEST-${Date.now()}`,
             nationality: 'Vietnamese',
-          });
+          }, { transaction });
         }
         targetCustomerId = customer.id;
       } else if (req.user) {
-        const cust = await Customer.findOne({ where: { user_id: req.user.id } });
+        const cust = await Customer.findOne({ where: { user_id: req.user.id }, transaction });
         if (cust) targetCustomerId = cust.id;
       }
     }
 
     if (!targetCustomerId) throw createError('Thông tin khách hàng là bắt buộc', 400);
 
-    // Check room availability
-    const room = await Room.findByPk(room_id, { include: [{ model: RoomType, as: 'roomType' }] });
+    // Check room availability — lock row để tránh concurrent booking
+    const room = await Room.findByPk(room_id, {
+      include: [{ model: RoomType, as: 'roomType' }],
+      lock: transaction.LOCK.UPDATE,
+      transaction,
+    });
     if (!room) throw createError('Room not found', 404);
     if (room.status === 'Deactivated' || room.status === 'Maintenance') {
       throw createError('Room is not available', 400);
     }
 
-    // Check for conflicts
+    // AUD-004: SELECT FOR UPDATE — chặn concurrent booking cùng phòng cùng ngày
     const conflict = await Booking.findOne({
       where: {
         room_id,
@@ -98,6 +114,8 @@ const createBooking = async (req, res, next) => {
           { checkin_date: { [Op.lte]: checkin_date }, checkout_date: { [Op.gte]: checkout_date } },
         ],
       },
+      lock: transaction.LOCK.UPDATE,
+      transaction,
     });
     if (conflict) throw createError('Room is already booked for the selected dates', 409);
 
@@ -122,10 +140,10 @@ const createBooking = async (req, res, next) => {
       room_price_per_night: price_per_night,
       room_price_total,
       booking_source: req.user?.role?.name === 'Customer' ? 'Web' : 'Staff',
-    });
+    }, { transaction });
 
     // Update room status to Reserved
-    await room.update({ status: 'Reserved' });
+    await room.update({ status: 'Reserved' }, { transaction });
 
     // Create notification for staff
     await Notification.create({
@@ -135,7 +153,9 @@ const createBooking = async (req, res, next) => {
       message: `Có booking mới cho phòng ${room.room_number} (${checkin_date} → ${checkout_date})`,
       related_id: booking.id,
       related_type: 'booking',
-    });
+    }, { transaction });
+
+    await transaction.commit();
 
     req.io?.emit('booking:new', { bookingId: booking.id, room_number: room.room_number });
 
@@ -147,7 +167,10 @@ const createBooking = async (req, res, next) => {
     });
 
     res.status(201).json({ success: true, message: 'Booking created successfully', data: fullBooking });
-  } catch (err) { next(err); }
+  } catch (err) {
+    await transaction.rollback();
+    next(err);
+  }
 };
 
 // PUT /api/bookings/:id/confirm
@@ -171,6 +194,16 @@ const cancelBooking = async (req, res, next) => {
       include: [{ model: Room, as: 'room' }],
     });
     if (!booking) throw createError('Booking not found', 404);
+
+    // AUD-008: Chống IDOR — Khách hàng chỉ được hủy booking của chính mình
+    const isStaff = req.user && ['Admin', 'Manager', 'Receptionist'].includes(req.user.role?.name);
+    if (!isStaff) {
+      const cust = await Customer.findOne({ where: { user_id: req.user.id } });
+      if (!cust || booking.customer_id !== cust.id) {
+        throw createError('Bạn không có quyền hủy đặt phòng này', 403);
+      }
+    }
+
     if (['CheckedIn','CheckedOut','Cancelled'].includes(booking.status)) {
       throw createError('Cannot cancel this booking', 400);
     }

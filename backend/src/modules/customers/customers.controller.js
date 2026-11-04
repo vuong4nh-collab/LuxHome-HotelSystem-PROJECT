@@ -47,9 +47,18 @@ const getCustomerBookings = async (req, res, next) => {
 // POST /api/customers
 const createCustomer = async (req, res, next) => {
   try {
-    const existing = await Customer.findOne({ where: { email: req.body.email } });
+    const { email } = req.body;
+    if (!email) throw createError('Email is required', 400);
+    const existing = await Customer.findOne({ where: { email } });
     if (existing) throw createError('Customer with this email already exists', 409);
-    const customer = await Customer.create(req.body);
+
+    const allowedFields = ['full_name', 'email', 'phone', 'address', 'id_type', 'id_number', 'nationality', 'date_of_birth', 'gender', 'notes'];
+    const createData = {};
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) createData[field] = req.body[field];
+    });
+
+    const customer = await Customer.create(createData);
     res.status(201).json({ success: true, message: 'Customer created', data: customer });
   } catch (err) { next(err); }
 };
@@ -61,12 +70,23 @@ const updateCustomer = async (req, res, next) => {
     if (!customer) throw createError('Customer not found', 404);
 
     // Customers can only update their own profile
-    if (req.user.role.name === 'Customer') {
+    const isCustomer = req.user.role?.name === 'Customer';
+    if (isCustomer) {
       const myProfile = await Customer.findOne({ where: { user_id: req.user.id } });
       if (myProfile?.id !== customer.id) throw createError('Forbidden', 403);
     }
 
-    await customer.update(req.body);
+    // AUD-010: Whitelist các trường được phép cập nhật để chống mass assignment
+    const allowedFields = isCustomer
+      ? ['full_name', 'phone', 'address', 'id_type', 'id_number', 'nationality', 'date_of_birth', 'gender']
+      : ['full_name', 'phone', 'address', 'id_type', 'id_number', 'nationality', 'date_of_birth', 'gender', 'notes', 'loyalty_points'];
+
+    const updateData = {};
+    allowedFields.forEach((field) => {
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
+    });
+
+    await customer.update(updateData);
     res.json({ success: true, message: 'Customer updated', data: customer });
   } catch (err) { next(err); }
 };

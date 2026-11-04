@@ -24,10 +24,10 @@ export default function AccountTab({
     full_name: user?.full_name || '',
     email: user?.email || '',
     phone: user?.phone || '',
-    address: 'Hà Nội, Việt Nam',
+    address: '',
     id_type: 'CCCD',
-    id_number: '001201088999',
-    date_of_birth: '1995-08-15',
+    id_number: '',
+    date_of_birth: '',
     gender: 'Male',
     loyalty_points: 0,
   });

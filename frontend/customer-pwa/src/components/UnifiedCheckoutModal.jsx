@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X, Check, AlertCircle, CreditCard, QrCode, ShieldCheck,
   BedDouble, Compass, Car, ArrowRight, CheckCircle2, Copy
@@ -30,6 +30,7 @@ export default function UnifiedCheckoutModal({
   const [error, setError] = useState('');
   const [createdOrder, setCreatedOrder] = useState(null);
   const [copied, setCopied] = useState(false);
+  const idempotencyRequest = useRef({ fingerprint: null, key: null });
 
   useEffect(() => {
     if (user) {
@@ -97,9 +98,16 @@ export default function UnifiedCheckoutModal({
         paymentMethod: selectedPayment,
       };
 
-      const res = await api.post('/checkout', payload);
+      const fingerprint = JSON.stringify(payload);
+      if (idempotencyRequest.current.fingerprint !== fingerprint) {
+        idempotencyRequest.current = { fingerprint, key: crypto.randomUUID() };
+      }
+      const res = await api.post('/checkout', payload, {
+        headers: { 'Idempotency-Key': idempotencyRequest.current.key },
+      });
       const order = res.data?.data;
       setCreatedOrder(order);
+      idempotencyRequest.current = { fingerprint: null, key: null };
       if (onSuccess) onSuccess(order);
     } catch (err) {
       console.error('Checkout error:', err);
@@ -256,46 +264,53 @@ export default function UnifiedCheckoutModal({
                 <h3>Thông Tin Khách Hàng Đại Diện</h3>
                 <div className="form-grid-2col">
                   <div className="form-field">
-                    <label>Họ và tên *</label>
+                    <label htmlFor="checkout-fullname">Họ và tên *</label>
                     <input
+                      id="checkout-fullname"
                       type="text"
                       className="form-input"
                       placeholder="Nguyễn Văn A"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
                       required
+                      aria-required="true"
                     />
                   </div>
 
                   <div className="form-field">
-                    <label>Số điện thoại liên hệ *</label>
+                    <label htmlFor="checkout-phone">Số điện thoại liên hệ *</label>
                     <input
+                      id="checkout-phone"
                       type="tel"
                       className="form-input"
                       placeholder="0912345678"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
                       required
+                      aria-required="true"
                     />
                   </div>
                 </div>
 
                 <div className="form-grid-2col" style={{ marginTop: '12px' }}>
                   <div className="form-field">
-                    <label>Email nhận xác nhận *</label>
+                    <label htmlFor="checkout-email">Email nhận xác nhận *</label>
                     <input
+                      id="checkout-email"
                       type="email"
                       className="form-input"
                       placeholder="khachhang@email.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       required
+                      aria-required="true"
                     />
                   </div>
 
                   <div className="form-field">
-                    <label>Địa chỉ liên hệ</label>
+                    <label htmlFor="checkout-address">Địa chỉ liên hệ</label>
                     <input
+                      id="checkout-address"
                       type="text"
                       className="form-input"
                       placeholder="Hà Nội, TP.HCM..."
@@ -306,8 +321,9 @@ export default function UnifiedCheckoutModal({
                 </div>
 
                 <div className="form-field" style={{ marginTop: '12px' }}>
-                  <label>Ghi chú đặc biệt cho chuyến đi</label>
+                  <label htmlFor="checkout-notes">Ghi chú đặc biệt cho chuyến đi</label>
                   <textarea
+                    id="checkout-notes"
                     className="form-textarea"
                     rows="2"
                     placeholder="Yêu cầu tầng cao, giờ đón tour, đón xe tại sảnh khách sạn..."
@@ -353,6 +369,9 @@ export default function UnifiedCheckoutModal({
               <div className="checkout-total-box">
                 <span className="label">Tổng Toàn Bộ Đơn Hàng ({items.length} dịch vụ)</span>
                 <span className="amount">{totalAmount.toLocaleString('vi-VN')} đ</span>
+                <span className="tax-included-note" style={{ fontSize: '11px', color: '#16A34A', display: 'block', marginTop: '2px' }}>
+                  ✓ Đã bao gồm 10% thuế GTGT &amp; phí dịch vụ
+                </span>
               </div>
 
               <button

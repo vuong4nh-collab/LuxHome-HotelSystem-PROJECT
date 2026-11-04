@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { Room, RoomType, Booking } = require('../../models');
+const { Room, RoomType, Booking, HotelBranch } = require('../../models');
 const { createError } = require('../../middlewares/errorHandler');
 
 // GET /api/rooms
@@ -11,7 +11,11 @@ const getAllRooms = async (req, res, next) => {
     if (floor) where.floor = parseInt(floor);
     if (hotel_branch_id) where.hotel_branch_id = parseInt(hotel_branch_id);
     if (hotel_id) {
-      where.hotel_branch_id = where.hotel_branch_id || { [Op.in]: [1] };
+      const branches = await HotelBranch.findAll({
+        where: { hotel_id: parseInt(hotel_id, 10) },
+        attributes: ['id'],
+      });
+      where.hotel_branch_id = where.hotel_branch_id || { [Op.in]: branches.map((branch) => branch.id) };
     }
 
     const include = [{ model: RoomType, as: 'roomType' }];

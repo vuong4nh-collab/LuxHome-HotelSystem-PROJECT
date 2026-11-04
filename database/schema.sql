@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS service_order_items (
 CREATE TABLE IF NOT EXISTS housekeeping_tasks (
     id INT AUTO_INCREMENT PRIMARY KEY,
     room_id INT NOT NULL,
-    hotel_branch_id INT NOT NULL DEFAULT 1,
+    hotel_branch_id INT NOT NULL,
     assigned_to INT,                   -- housekeeping staff user_id
     task_type ENUM('Cleaning','Turndown','Inspection','Maintenance','DeepClean') DEFAULT 'Cleaning',
     priority ENUM('Low','Normal','High','Urgent') DEFAULT 'Normal',
@@ -261,7 +261,7 @@ CREATE TABLE IF NOT EXISTS housekeeping_tasks (
 CREATE TABLE IF NOT EXISTS invoices (
     id INT AUTO_INCREMENT PRIMARY KEY,
     booking_id INT NOT NULL UNIQUE,
-    hotel_branch_id INT NOT NULL DEFAULT 1,
+    hotel_branch_id INT NOT NULL,
     invoice_number VARCHAR(30) NOT NULL UNIQUE,
     customer_id INT NOT NULL,
     room_charge DECIMAL(12,2) NOT NULL DEFAULT 0.00,
@@ -294,8 +294,8 @@ CREATE TABLE IF NOT EXISTS invoice_items (
 
 CREATE TABLE IF NOT EXISTS payments (
     id INT AUTO_INCREMENT PRIMARY KEY,
-    invoice_id INT NOT NULL,
-    hotel_branch_id INT NOT NULL DEFAULT 1,
+    invoice_id INT NULL,
+    hotel_branch_id INT NULL DEFAULT NULL,
     amount DECIMAL(12,2) NOT NULL,
     payment_method ENUM('Cash','CreditCard','BankTransfer','QRCode','Momo','VNPay') DEFAULT 'Cash',
     transaction_ref VARCHAR(100),
@@ -314,7 +314,7 @@ CREATE TABLE IF NOT EXISTS payments (
 CREATE TABLE IF NOT EXISTS notifications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT,                       -- NULL = broadcast
-    hotel_branch_id INT NOT NULL DEFAULT 1,
+    hotel_branch_id INT NULL DEFAULT NULL,
     type ENUM('Booking','CheckIn','CheckOut','ServiceOrder','Housekeeping','Payment','System') NOT NULL,
     title VARCHAR(200) NOT NULL,
     message TEXT NOT NULL,
@@ -395,5 +395,26 @@ CREATE INDEX idx_hk_tasks_assigned ON housekeeping_tasks(assigned_to);
 CREATE INDEX idx_hk_tasks_status ON housekeeping_tasks(status);
 CREATE INDEX idx_notifications_user ON notifications(user_id, is_read);
 CREATE INDEX idx_invoices_booking ON invoices(booking_id);
+
+CREATE TABLE IF NOT EXISTS checkout_idempotency (
+    idempotency_key VARCHAR(128) PRIMARY KEY,
+    request_hash CHAR(64) NOT NULL,
+    response_json JSON,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at DATETIME NOT NULL,
+    INDEX idx_checkout_idempotency_expires_at (expires_at)
+);
+
+CREATE TABLE IF NOT EXISTS auth_refresh_sessions (
+    id CHAR(36) PRIMARY KEY,
+    user_id INT NOT NULL,
+    token_hash CHAR(64) NOT NULL UNIQUE,
+    expires_at DATETIME NOT NULL,
+    revoked_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_auth_refresh_user (user_id),
+    INDEX idx_auth_refresh_expiry (expires_at),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
 
 SET FOREIGN_KEY_CHECKS = 1;

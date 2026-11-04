@@ -58,10 +58,16 @@ mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS hotel_management;"
 mysql -u root -p hotel_management < database/schema.sql
 mysql -u root -p hotel_management < database/seed.sql
 
+# Với database đã tồn tại và đã áp dụng migrations 001–006, áp dụng các migration mới:
+mysql -u root -p hotel_management < database/migrations/007_checkout_idempotency.sql
+mysql -u root -p hotel_management < database/migrations/008_optional_branch_attribution.sql
+mysql -u root -p hotel_management < database/migrations/009_auth_refresh_sessions.sql
+
 # 2. Chạy Backend API (Cửa sổ Terminal 1)
 cd backend
 npm install   # 👈 Bổ sung lệnh này
 cp .env.example .env
+# Đặt JWT_SECRET và PAYMENT_WEBHOOK_SECRET riêng cho môi trường triển khai.
 npm run dev
 
 # 3. Chạy Staff Web (Cửa sổ Terminal 2)

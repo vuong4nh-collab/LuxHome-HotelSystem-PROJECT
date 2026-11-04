@@ -209,7 +209,7 @@ const ServiceOrderItem = sequelize.define('ServiceOrderItem', {
 const HousekeepingTask = sequelize.define('HousekeepingTask', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   room_id: { type: DataTypes.INTEGER, allowNull: false },
-  hotel_branch_id: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  hotel_branch_id: { type: DataTypes.INTEGER, allowNull: false },
   assigned_to: DataTypes.INTEGER,
   task_type: { type: DataTypes.ENUM('Cleaning','Turndown','Inspection','Maintenance','DeepClean'), defaultValue: 'Cleaning' },
   priority: { type: DataTypes.ENUM('Low','Normal','High','Urgent'), defaultValue: 'Normal' },
@@ -225,7 +225,7 @@ const HousekeepingTask = sequelize.define('HousekeepingTask', {
 const Invoice = sequelize.define('Invoice', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   booking_id: { type: DataTypes.INTEGER, allowNull: false, unique: true },
-  hotel_branch_id: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  hotel_branch_id: { type: DataTypes.INTEGER, allowNull: false },
   invoice_number: { type: DataTypes.STRING(30), allowNull: false, unique: true },
   customer_id: { type: DataTypes.INTEGER, allowNull: false },
   room_charge: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
@@ -256,7 +256,7 @@ const Payment = sequelize.define('Payment', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   invoice_id: { type: DataTypes.INTEGER, allowNull: true },
   order_id: { type: DataTypes.INTEGER, allowNull: true },
-  hotel_branch_id: { type: DataTypes.INTEGER, allowNull: true, defaultValue: 1 },
+  hotel_branch_id: { type: DataTypes.INTEGER, allowNull: true },
   amount: { type: DataTypes.DECIMAL(12,2), allowNull: false },
   payment_method: { type: DataTypes.ENUM('Cash','CreditCard','BankTransfer','QRCode','Momo','VNPay'), defaultValue: 'Cash' },
   transaction_ref: DataTypes.STRING(100),
@@ -270,7 +270,7 @@ const Payment = sequelize.define('Payment', {
 const Notification = sequelize.define('Notification', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   user_id: DataTypes.INTEGER,
-  hotel_branch_id: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+  hotel_branch_id: { type: DataTypes.INTEGER, allowNull: true },
   type: { type: DataTypes.ENUM('Booking','CheckIn','CheckOut','ServiceOrder','Housekeeping','Payment','System'), allowNull: false },
   title: { type: DataTypes.STRING(200), allowNull: false },
   message: { type: DataTypes.TEXT, allowNull: false },
@@ -340,6 +340,23 @@ const OrderItem = sequelize.define('OrderItem', {
   total_price: { type: DataTypes.DECIMAL(12,2), allowNull: false },
   metadata: DataTypes.JSON,
 }, { tableName: 'order_items', updatedAt: false });
+
+const CheckoutIdempotency = sequelize.define('CheckoutIdempotency', {
+  idempotency_key: { type: DataTypes.STRING(128), primaryKey: true },
+  request_hash: { type: DataTypes.STRING(64), allowNull: false },
+  response_json: { type: DataTypes.JSON, allowNull: true },
+  created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+  expires_at: { type: DataTypes.DATE, allowNull: false },
+}, { tableName: 'checkout_idempotency', timestamps: false });
+
+const AuthRefreshSession = sequelize.define('AuthRefreshSession', {
+  id: { type: DataTypes.UUID, primaryKey: true },
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
+  token_hash: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+  expires_at: { type: DataTypes.DATE, allowNull: false },
+  revoked_at: DataTypes.DATE,
+  created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+}, { tableName: 'auth_refresh_sessions', timestamps: false });
 
 // ── Tour Models ───────────────────────────────────────────────
 const Tour = sequelize.define('Tour', {
@@ -555,6 +572,8 @@ module.exports = {
   Invoice, InvoiceItem, Payment,
   Notification, Review, ConsultationRequest,
   Order, OrderItem,
+  CheckoutIdempotency,
+  AuthRefreshSession,
   Tour, TourSchedule, TourItinerary, TourBooking,
   Car, CarRentalBooking,
 };

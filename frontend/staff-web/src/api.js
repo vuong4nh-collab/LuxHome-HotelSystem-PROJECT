@@ -6,35 +6,31 @@ const api = axios.create({
   baseURL: API_URL,
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 });
 
-// Request interceptor — attach token (support both keys for consistency)
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('luxstay_token') || localStorage.getItem('hotel_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-// Response interceptor — handle 401 without hard window.location.href page reload loop
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('luxstay_token');
-      localStorage.removeItem('luxstay_user');
-      localStorage.removeItem('hotel_token');
-      localStorage.removeItem('hotel_user');
-
-      // Only notify app to switch to login state if not skipped
-      if (!err.config?._skipAuthRedirect) {
+  async (err) => {
+    const config = err.config;
+    const url = config?.url || '';
+    if (err.response?.status === 401 && config && !config._authRetry &&
+        !url.includes('/auth/login') && !url.includes('/auth/refresh') &&
+        !url.includes('/auth/logout')) {
+      config._authRetry = true;
+      try {
+        await api.post('/auth/refresh');
+        return api(config);
+      } catch (refreshError) {
         window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+        return Promise.reject(refreshError);
       }
+    }
+    if (err.response?.status === 401 && !config?._skipAuthRedirect) {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
     }
     return Promise.reject(err);
   }
 );
 
 export default api;
-

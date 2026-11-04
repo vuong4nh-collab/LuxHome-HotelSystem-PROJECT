@@ -1,8 +1,10 @@
 const { Op } = require('sequelize');
+const crypto = require('crypto');
 const {
   sequelize,
   Order,
   OrderItem,
+  CheckoutIdempotency,
   Booking,
   TourBooking,
   CarRentalBooking,
@@ -17,17 +19,64 @@ const {
 } = require('../../models');
 const { createError } = require('../../middlewares/errorHandler');
 
-// Helper to generate unique order code: ORD-YYYYMMDD-XXXX
+// Helper to generate unique order code dùng crypto để tránh collision
 const generateOrderCode = () => {
   const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-  const rand = Math.floor(1000 + Math.random() * 9000);
+  const rand = crypto.randomBytes(3).toString('hex').toUpperCase(); // 16^6 = 16M khả năng
   return `ORD-${dateStr}-${rand}`;
+};
+
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000; // 24 giờ
+
+const isValidDateOnly = (value) => {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 };
 
 // POST /api/checkout
 const checkout = async (req, res, next) => {
-  const transaction = await sequelize.transaction();
+  const idempotencyKey = req.headers['idempotency-key'];
+  if (!idempotencyKey || typeof idempotencyKey !== 'string' ||
+      !/^[a-zA-Z0-9._:-]{1,128}$/.test(idempotencyKey)) {
+    return next(createError('Idempotency-Key không hợp lệ', 400));
+  }
+  if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
+    return next(createError('Dữ liệu checkout không hợp lệ', 400));
+  }
+
+  let transaction;
+  let idempotencyRecord = null;
   try {
+    transaction = await sequelize.transaction();
+    const requestHash = crypto.createHash('sha256')
+      .update(JSON.stringify({ userId: req.user?.id || null, body: req.body }))
+      .digest('hex');
+    const [record, created] = await CheckoutIdempotency.findOrCreate({
+      where: { idempotency_key: idempotencyKey },
+      defaults: {
+        request_hash: requestHash,
+        expires_at: new Date(Date.now() + IDEMPOTENCY_TTL_MS),
+      },
+      transaction,
+    });
+
+    if (!created) {
+      await transaction.rollback();
+      if (record.expires_at <= new Date()) {
+        await record.destroy();
+        return next(createError('Idempotency key đã hết hạn; vui lòng gửi yêu cầu mới', 409));
+      }
+      if (record.request_hash !== requestHash) {
+        return next(createError('Idempotency key đã được dùng cho yêu cầu khác', 409));
+      }
+      if (!record.response_json) {
+        return next(createError('Yêu cầu checkout với khóa này đang được xử lý', 409));
+      }
+      return res.status(201).json(record.response_json);
+    }
+    idempotencyRecord = record;
+
     const {
       hotelBooking,
       hotelBookings = hotelBooking ? [hotelBooking] : [],
@@ -39,15 +88,39 @@ const checkout = async (req, res, next) => {
       paymentMethod = 'BankTransfer',
     } = req.body;
 
+    if (!Array.isArray(hotelBookings) || !Array.isArray(tourBookings) || !Array.isArray(carRentals)) {
+      throw createError('Danh sách dịch vụ đặt không hợp lệ', 400);
+    }
     if (hotelBookings.length === 0 && tourBookings.length === 0 && carRentals.length === 0) {
       throw createError('Đơn hàng phải chứa ít nhất một dịch vụ (Khách sạn, Tour hoặc Thuê xe)', 400);
+    }
+    if (!customerInfo || typeof customerInfo !== 'object' || Array.isArray(customerInfo)) {
+      throw createError('Thông tin khách hàng không hợp lệ', 400);
     }
 
     // 1. Identify or create customer
     let targetCustomerId = null;
-    const guestEmail = customerInfo.email?.trim() || req.user?.email;
+    for (const field of ['email', 'fullName', 'name', 'phone']) {
+      if (customerInfo[field] !== undefined && typeof customerInfo[field] !== 'string') {
+        throw createError(`Trường ${field} không hợp lệ`, 400);
+      }
+    }
+    const rawEmail = customerInfo.email?.trim() || req.user?.email || '';
+    const guestEmail = rawEmail.toLowerCase();
     const guestName = customerInfo.fullName?.trim() || customerInfo.name?.trim() || req.user?.full_name || 'Khách hàng LuxHome';
     const guestPhone = customerInfo.phone?.trim() || req.user?.phone || '';
+    if (guestName.length < 2 || guestName.length > 100) {
+      throw createError('Họ tên phải có từ 2 đến 100 ký tự', 400);
+    }
+    if (!guestEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(guestEmail) || guestEmail.length > 100) {
+      throw createError('Email không hợp lệ', 400);
+    }
+    if (!/^\+?[0-9]{9,15}$/.test(guestPhone)) {
+      throw createError('Số điện thoại không hợp lệ', 400);
+    }
+    if (!['BankTransfer', 'QRCode', 'Momo', 'VNPay', 'Cash'].includes(paymentMethod)) {
+      throw createError('Phương thức thanh toán không hợp lệ', 400);
+    }
 
     if (req.user) {
       const cust = await Customer.findOne({ where: { user_id: req.user.id }, transaction });
@@ -92,9 +165,16 @@ const checkout = async (req, res, next) => {
       if (!roomId || !checkinDate || !checkoutDate) {
         throw createError('Thông tin đặt phòng khách sạn không đầy đủ', 400);
       }
+      if (!isValidDateOnly(checkinDate) || !isValidDateOnly(checkoutDate) || checkoutDate <= checkinDate) {
+        throw createError('Ngày nhận và trả phòng không hợp lệ', 400);
+      }
+      if (!Number.isInteger(Number(numGuests)) || Number(numGuests) < 1 || Number(numGuests) > 20) {
+        throw createError('Số khách phải từ 1 đến 20', 400);
+      }
 
       const room = await Room.findByPk(roomId, {
         include: [{ model: RoomType, as: 'roomType' }],
+        lock: transaction.LOCK.UPDATE,
         transaction,
       });
 
@@ -102,7 +182,8 @@ const checkout = async (req, res, next) => {
         throw createError(`Phòng ${room ? room.room_number : roomId} hiện không khả dụng`, 400);
       }
 
-      // Check conflict
+      // AUD-004: Dùng SELECT FOR UPDATE để tránh race condition overbooking
+      // Khóa các booking hiện có của phòng này trước khi tạo mới
       const conflict = await Booking.findOne({
         where: {
           room_id: roomId,
@@ -113,6 +194,7 @@ const checkout = async (req, res, next) => {
             { checkin_date: { [Op.lte]: checkinDate }, checkout_date: { [Op.gte]: checkoutDate } },
           ],
         },
+        lock: transaction.LOCK.UPDATE,
         transaction,
       });
 
@@ -145,6 +227,9 @@ const checkout = async (req, res, next) => {
       const scheduleId = tItem.scheduleId || tItem.schedule_id;
       const people = parseInt(tItem.people || tItem.number_of_people || 1, 10);
       const tourDate = tItem.tourDate || tItem.tour_date || (tItem.date ? tItem.date : new Date().toISOString().slice(0, 10));
+      if (!Number.isInteger(people) || people < 1 || people > 100 || !isValidDateOnly(tourDate)) {
+        throw createError('Số người hoặc ngày đi tour không hợp lệ', 400);
+      }
 
       const tour = await Tour.findByPk(tourId, { transaction });
       if (!tour || tour.status !== 'Active') {
@@ -153,7 +238,11 @@ const checkout = async (req, res, next) => {
 
       let schedule = null;
       if (scheduleId) {
-        schedule = await TourSchedule.findByPk(scheduleId, { transaction });
+        // AUD-006: Khóa row schedule bằng SELECT FOR UPDATE để tránh race condition overbooking số chỗ
+        schedule = await TourSchedule.findByPk(scheduleId, {
+          lock: transaction.LOCK.UPDATE,
+          transaction,
+        });
         if (schedule) {
           const remainingSlots = schedule.available_slots - schedule.booked_slots;
           if (remainingSlots < people) {
@@ -184,18 +273,18 @@ const checkout = async (req, res, next) => {
       const returnDatetime = cItem.return || cItem.returnDatetime || cItem.return_datetime;
       const driverRequired = Boolean(cItem.driverRequired || cItem.driver_required);
 
-      const car = await Car.findByPk(carId, { transaction });
+      const car = await Car.findByPk(carId, { lock: transaction.LOCK.UPDATE, transaction });
       if (!car || car.status !== 'Available') {
         throw createError(`Xe "${car ? car.name : carId}" hiện không sẵn sàng cho thuê`, 400);
       }
 
       const pDate = new Date(pickupDatetime);
       const rDate = new Date(returnDatetime);
-      if (rDate <= pDate) {
+      if (Number.isNaN(pDate.getTime()) || Number.isNaN(rDate.getTime()) || rDate <= pDate) {
         throw createError('Thời gian trả xe phải sau thời gian nhận xe', 400);
       }
 
-      // Check overlapping bookings
+      // AUD-004: SELECT FOR UPDATE để tránh race condition thuê xe
       const conflictRental = await CarRentalBooking.findOne({
         where: {
           car_id: carId,
@@ -207,6 +296,7 @@ const checkout = async (req, res, next) => {
             },
           ],
         },
+        lock: transaction.LOCK.UPDATE,
         transaction,
       });
 
@@ -262,7 +352,7 @@ const checkout = async (req, res, next) => {
         {
           order_id: order.id,
           customer_id: targetCustomerId,
-          hotel_branch_id: h.room.hotel_branch_id || 1,
+          hotel_branch_id: h.room.hotel_branch_id,
           room_id: h.room.id,
           checkin_date: h.checkinDate,
           checkout_date: h.checkoutDate,
@@ -317,6 +407,10 @@ const checkout = async (req, res, next) => {
 
       if (t.schedule) {
         await t.schedule.increment('booked_slots', { by: t.people, transaction });
+        await t.schedule.reload({ transaction });
+        if (t.schedule.booked_slots >= t.schedule.available_slots) {
+          await t.schedule.update({ status: 'Full' }, { transaction });
+        }
       }
 
       await OrderItem.create(
@@ -392,6 +486,7 @@ const checkout = async (req, res, next) => {
       {
         order_id: order.id,
         invoice_id: null,
+        hotel_branch_id: validatedHotelItems[0]?.room.hotel_branch_id || null,
         amount: finalAmount,
         payment_method: resolvedMethod,
         transaction_ref: `TXN-${Date.now()}`,
@@ -405,7 +500,7 @@ const checkout = async (req, res, next) => {
     await Notification.create(
       {
         user_id: null,
-        hotel_branch_id: 1,
+        hotel_branch_id: validatedHotelItems[0]?.room.hotel_branch_id || null,
         type: 'Booking',
         title: 'Đơn hàng mới hợp nhất',
         message: `Đơn hàng ${orderCode} vừa được tạo với tổng giá trị ${finalAmount.toLocaleString('vi-VN')} đ`,
@@ -414,8 +509,6 @@ const checkout = async (req, res, next) => {
       },
       { transaction }
     );
-
-    await transaction.commit();
 
     // Fetch full order details to return
     const createdOrder = await Order.findByPk(order.id, {
@@ -442,13 +535,20 @@ const checkout = async (req, res, next) => {
 
     req.io?.emit('order:new', { orderCode, totalAmount: finalAmount });
 
-    res.status(201).json({
+    const responsePayload = {
       success: true,
       message: 'Đặt đơn hàng thành công',
       data: createdOrder,
-    });
+    };
+
+    if (idempotencyRecord) {
+      await idempotencyRecord.update({ response_json: responsePayload }, { transaction });
+    }
+
+    await transaction.commit();
+    res.status(201).json(responsePayload);
   } catch (err) {
-    await transaction.rollback();
+    if (transaction && !transaction.finished) await transaction.rollback();
     next(err);
   }
 };
@@ -462,16 +562,33 @@ const getAllOrders = async (req, res, next) => {
     if (status) where.order_status = status;
     if (payment_status) where.payment_status = payment_status;
 
-    // Filter by customer if logged in or by query
-    let custId = customer_id;
-    if (req.user) {
-      const cust = await Customer.findOne({ where: { user_id: req.user.id } });
-      if (cust) custId = cust.id;
-    }
+    // AUD-008: Phân quyền & Chống IDOR
+    const isStaff = req.user && ['Admin', 'Manager', 'Receptionist'].includes(req.user.role?.name);
 
-    if (custId) {
-      where.customer_id = custId;
-    } else if (email || phone) {
+    if (req.user?.role?.name === 'Customer') {
+      // Khách hàng đăng nhập: BẮT BUỘC chỉ xem đơn của chính mình
+      const cust = await Customer.findOne({ where: { user_id: req.user.id } });
+      where.customer_id = cust ? cust.id : -1;
+    } else if (isStaff) {
+      // Nhân viên: có thể lọc theo customer_id hoặc email/phone nếu truyền vào
+      if (customer_id) where.customer_id = customer_id;
+      if (email || phone) {
+        const orConds = [];
+        if (email) orConds.push({ contact_email: email });
+        if (phone) orConds.push({ contact_phone: phone });
+        where[Op.or] = orConds;
+      }
+    } else {
+      // Khách vãng lai chưa đăng nhập: BẮT BUỘC phải truyền email hoặc phone chính xác
+      if (!email && !phone) {
+        return res.json({
+          success: true,
+          data: [],
+          total: 0,
+          page: 1,
+          totalPages: 0,
+        });
+      }
       const orConds = [];
       if (email) orConds.push({ contact_email: email });
       if (phone) orConds.push({ contact_phone: phone });
@@ -552,6 +669,25 @@ const getOrderById = async (req, res, next) => {
       throw createError('Không tìm thấy đơn hàng', 404);
     }
 
+    // AUD-008: Kiểm tra quyền xem đơn hàng
+    const isStaff = req.user && ['Admin', 'Manager', 'Receptionist'].includes(req.user.role?.name);
+    if (!isStaff) {
+      if (req.user?.role?.name === 'Customer') {
+        const cust = await Customer.findOne({ where: { user_id: req.user.id } });
+        if (!cust || order.customer_id !== cust.id) {
+          throw createError('Bạn không có quyền truy cập đơn hàng này', 403);
+        }
+      } else {
+        const reqEmail = req.query.email || req.headers['x-guest-email'];
+        const reqPhone = req.query.phone || req.headers['x-guest-phone'];
+        const matchEmail = reqEmail && reqEmail.toLowerCase() === order.contact_email?.toLowerCase();
+        const matchPhone = reqPhone && reqPhone === order.contact_phone;
+        if (!matchEmail && !matchPhone) {
+          throw createError('Bạn không có quyền truy cập đơn hàng này', 403);
+        }
+      }
+    }
+
     res.json({ success: true, data: order });
   } catch (err) {
     next(err);
@@ -579,6 +715,25 @@ const cancelOrder = async (req, res, next) => {
 
     if (!order) {
       throw createError('Không tìm thấy đơn hàng', 404);
+    }
+
+    // AUD-008: Kiểm tra quyền hủy đơn hàng
+    const isStaff = req.user && ['Admin', 'Manager', 'Receptionist'].includes(req.user.role?.name);
+    if (!isStaff) {
+      if (req.user?.role?.name === 'Customer') {
+        const cust = await Customer.findOne({ where: { user_id: req.user.id } });
+        if (!cust || order.customer_id !== cust.id) {
+          throw createError('Bạn không có quyền hủy đơn hàng này', 403);
+        }
+      } else {
+        const reqEmail = req.body.email || req.headers['x-guest-email'];
+        const reqPhone = req.body.phone || req.headers['x-guest-phone'];
+        const matchEmail = reqEmail && reqEmail.toLowerCase() === order.contact_email?.toLowerCase();
+        const matchPhone = reqPhone && reqPhone === order.contact_phone;
+        if (!matchEmail && !matchPhone) {
+          throw createError('Vui lòng cung cấp email hoặc số điện thoại đặt hàng để xác nhận hủy', 403);
+        }
+      }
     }
 
     if (order.order_status === 'CANCELLED') {
@@ -641,18 +796,30 @@ const payOrder = async (req, res, next) => {
   const transaction = await sequelize.transaction();
   try {
     const { id } = req.params;
-    const { paymentMethod = 'BankTransfer', transactionRef } = req.body;
+    const { paymentMethod = 'Cash' } = req.body;
+    if (paymentMethod !== 'Cash') {
+      throw createError('Chỉ xác nhận thanh toán tiền mặt tại quầy qua endpoint này', 400);
+    }
     const isNumeric = !Number.isNaN(Number(id));
     const where = isNumeric ? { id } : { order_code: id };
 
     const order = await Order.findOne({
       where,
-      include: [{ model: Payment, as: 'payments' }],
+      include: [
+        { model: Payment, as: 'payments' },
+        { model: Booking, as: 'hotelBookings', attributes: ['hotel_branch_id'] },
+      ],
       transaction,
     });
 
     if (!order) {
       throw createError('Không tìm thấy đơn hàng', 404);
+    }
+    if (order.payment_status === 'PAID') {
+      throw createError('Đơn hàng đã được thanh toán', 409);
+    }
+    if (order.order_status === 'CANCELLED') {
+      throw createError('Không thể thanh toán đơn hàng đã hủy', 409);
     }
 
     await order.update(
@@ -668,8 +835,9 @@ const payOrder = async (req, res, next) => {
       await order.payments[0].update(
         {
           status: 'Success',
-          payment_method: paymentMethod,
-          transaction_ref: transactionRef || `TXN-PAID-${Date.now()}`,
+          hotel_branch_id: order.hotelBookings?.[0]?.hotel_branch_id || null,
+          payment_method: 'Cash',
+          transaction_ref: `POS-${crypto.randomUUID()}`,
           paid_at: new Date(),
         },
         { transaction }
@@ -678,9 +846,10 @@ const payOrder = async (req, res, next) => {
       await Payment.create(
         {
           order_id: order.id,
+          hotel_branch_id: order.hotelBookings?.[0]?.hotel_branch_id || null,
           amount: order.final_amount,
-          payment_method: paymentMethod,
-          transaction_ref: transactionRef || `TXN-PAID-${Date.now()}`,
+          payment_method: 'Cash',
+          transaction_ref: `POS-${crypto.randomUUID()}`,
           status: 'Success',
           paid_at: new Date(),
         },

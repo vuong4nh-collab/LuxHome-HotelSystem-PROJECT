@@ -44,10 +44,10 @@ jobs:
           cd backend
           npm ci
 
-      - name: Run Backend Syntax Check & Verification
+      - name: Run Backend Tests
         run: |
           cd backend
-          node -e "console.log('Backend syntax check passed successfully!');"
+          node --test
 
   # ─── JOB 2: BUILD FRONTEND STAFF WEB ───────────────────────────
   build-staff-web:

@@ -143,15 +143,18 @@ export default function CheckInTab({
       setCheckInError('Vui lòng đăng nhập và chọn đơn đặt phòng đã được hệ thống xác nhận để check-in.');
       return;
     }
-    if (!checkinForm.idNumber && !idFrontUploaded) {
-      alert('Vui lòng nhập số CCCD / Hộ chiếu hoặc chụp ảnh giấy tờ tùy thân.');
+    if (!checkinForm.idNumber) {
+      setCheckInError('Vui lòng nhập số CCCD / Hộ chiếu hợp lệ để khai báo thông tin lưu trú.');
       return;
     }
 
     setCheckInError('');
     setSubmittingCheckIn(true);
     try {
-      const { data } = await api.post(`/checkin/${selectedBooking.id}`);
+      const { data } = await api.post(`/checkin/${selectedBooking.id}`, {
+        id_number: checkinForm.idNumber.trim(),
+        special_requests: checkinForm.specialRequests.trim(),
+      });
       if (data?.success !== true || String(data?.data?.bookingId) !== String(selectedBooking.id)) {
         throw new Error('Máy chủ chưa xác nhận check-in cho đơn đặt phòng này. Vui lòng tải lại và thử lại.');
       }
@@ -366,32 +369,16 @@ export default function CheckInTab({
                     </div>
                   </div>
 
-                  {/* ID Card Scan Mock */}
+                  {/* ID Card Verification Note */}
                   <div className="id-card-upload-box">
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '8px' }}>
-                      Hình ảnh CCCD / Hộ chiếu:
+                      Xác thực CCCD / Hộ chiếu lưu trú:
                     </label>
-                    <div className="upload-slots">
-                      <button
-                        type="button"
-                        className={`upload-slot ${idFrontUploaded ? 'done' : ''}`}
-                        onClick={() => setIdFrontUploaded(!idFrontUploaded)}
-                      >
-                        <Camera size={20} />
-                        <span>{idFrontUploaded ? '✓ Mặt trước đã chụp' : '+ Mặt trước CCCD'}</span>
-                      </button>
-                      <button
-                        type="button"
-                        className={`upload-slot ${idBackUploaded ? 'done' : ''}`}
-                        onClick={() => setIdBackUploaded(!idBackUploaded)}
-                      >
-                        <Camera size={20} />
-                        <span>{idBackUploaded ? '✓ Mặt sau đã chụp' : '+ Mặt sau CCCD'}</span>
-                      </button>
+                    <div className="document-notice-card" style={{ padding: '10px 14px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      <p style={{ margin: 0 }}>
+                        📋 Quý khách vui lòng xuất trình <strong>bản gốc CCCD hoặc Hộ chiếu</strong> tại quầy lễ tân khi nhận phòng để đối chiếu theo quy định của Bộ Công An.
+                      </p>
                     </div>
-                    <small style={{ color: 'var(--text-muted)', fontSize: '11px', display: 'block', marginTop: '4px' }}>
-                      Chụp ảnh giúp đẩy nhanh tốc độ nhận phòng tại quầy không quá 10 giây.
-                    </small>
                   </div>
 
                   <div className="form-group">

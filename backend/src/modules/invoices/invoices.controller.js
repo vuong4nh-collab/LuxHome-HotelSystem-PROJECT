@@ -30,6 +30,16 @@ const getInvoiceById = async (req, res, next) => {
       ],
     });
     if (!invoice) throw createError('Invoice not found', 404);
+
+    // AUD-008: Chống IDOR — Khách hàng chỉ xem hóa đơn của chính mình
+    const isStaff = req.user && ['Admin', 'Manager', 'Receptionist'].includes(req.user.role?.name);
+    if (!isStaff) {
+      const cust = await Customer.findOne({ where: { user_id: req.user.id } });
+      if (!cust || invoice.customer_id !== cust.id) {
+        throw createError('Forbidden', 403);
+      }
+    }
+
     res.json({ success: true, data: invoice });
   } catch (err) { next(err); }
 };
@@ -45,6 +55,16 @@ const getInvoiceByBooking = async (req, res, next) => {
       ],
     });
     if (!invoice) throw createError('Invoice not found for this booking', 404);
+
+    // AUD-008: Chống IDOR — Khách hàng chỉ xem hóa đơn của chính mình
+    const isStaff = req.user && ['Admin', 'Manager', 'Receptionist'].includes(req.user.role?.name);
+    if (!isStaff) {
+      const cust = await Customer.findOne({ where: { user_id: req.user.id } });
+      if (!cust || invoice.customer_id !== cust.id) {
+        throw createError('Forbidden', 403);
+      }
+    }
+
     res.json({ success: true, data: invoice });
   } catch (err) { next(err); }
 };
@@ -59,6 +79,7 @@ const processPayment = async (req, res, next) => {
 
     const payment = await Payment.create({
       invoice_id: invoice.id,
+      hotel_branch_id: invoice.hotel_branch_id,
       amount: parseFloat(amount),
       payment_method: payment_method || 'Cash',
       transaction_ref,
@@ -72,6 +93,7 @@ const processPayment = async (req, res, next) => {
     // Notify customer
     await Notification.create({
       type: 'Payment',
+      hotel_branch_id: invoice.hotel_branch_id,
       title: 'Thanh toán thành công',
       message: `Hóa đơn ${invoice.invoice_number} đã được thanh toán: ${amount.toLocaleString()} VNĐ`,
       related_id: invoice.id,
@@ -94,6 +116,16 @@ const getInvoicePrintData = async (req, res, next) => {
       ],
     });
     if (!invoice) throw createError('Invoice not found', 404);
+
+    // AUD-008: Chống IDOR
+    const isStaff = req.user && ['Admin', 'Manager', 'Receptionist'].includes(req.user.role?.name);
+    if (!isStaff) {
+      const cust = await Customer.findOne({ where: { user_id: req.user.id } });
+      if (!cust || invoice.customer_id !== cust.id) {
+        throw createError('Forbidden', 403);
+      }
+    }
+
     res.json({ success: true, data: invoice });
   } catch (err) { next(err); }
 };

@@ -12,7 +12,6 @@ import TourSection from './components/TourSection.jsx';
 import CarSection from './components/CarSection.jsx';
 import AccessibleDialog from './components/AccessibleDialog.jsx';
 
-const AUTH_STORAGE_KEY = 'luxstay_customer_token';
 const USER_STORAGE_KEY = 'luxstay_customer_user';
 
 const getDateInputValue = (offsetDays = 0, fromDate = new Date()) => {
@@ -88,17 +87,8 @@ const mapAvailableRoom = (room) => {
   };
 };
 
-const getStoredUser = () => {
-  try {
-    const raw = localStorage.getItem(USER_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-};
-
 export default function App() {
-  const [user, setUser] = useState(getStoredUser);
+  const [user, setUser] = useState(null);
   const [authMode, setAuthMode] = useState('login');
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authForm, setAuthForm] = useState({
@@ -216,8 +206,7 @@ export default function App() {
     return data.data.map(mapAvailableRoom);
   };
 
-  const persistAuth = (token, userData) => {
-    localStorage.setItem(AUTH_STORAGE_KEY, token);
+  const persistAuth = (userData) => {
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(userData));
     setUser(userData);
   };
@@ -229,7 +218,7 @@ export default function App() {
 
       if (profile?.id) {
         const mergedUser = { ...userData, customerId: profile.id };
-        persistAuth(localStorage.getItem(AUTH_STORAGE_KEY) || '', mergedUser);
+        persistAuth(mergedUser);
         return profile.id;
       }
 
@@ -248,7 +237,7 @@ export default function App() {
       if (!createdCustomerId) return null;
 
       const mergedUser = { ...userData, customerId: createdCustomerId };
-      persistAuth(localStorage.getItem(AUTH_STORAGE_KEY) || '', mergedUser);
+      persistAuth(mergedUser);
       return createdCustomerId;
     } catch (error) {
       console.error('Unable to ensure customer profile', error);
@@ -257,7 +246,6 @@ export default function App() {
   };
 
   const clearAuth = () => {
-    localStorage.removeItem(AUTH_STORAGE_KEY);
     localStorage.removeItem(USER_STORAGE_KEY);
     setUser(null);
     setAuthMode('login');
@@ -272,9 +260,13 @@ export default function App() {
   };
 
   useEffect(() => {
-    const token = localStorage.getItem(AUTH_STORAGE_KEY);
-    if (!token) return;
+    const handleUnauthorized = () => clearAuth();
+    window.addEventListener('auth:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
+  }, []);
 
+  useEffect(() => {
+    localStorage.removeItem('luxstay_customer_token');
     api.get('/auth/me')
       .then(({ data }) => {
         const me = data?.data ?? data?.user ?? null;
@@ -287,13 +279,23 @@ export default function App() {
             role: me.role,
             customerId: me.customerProfile?.id || null,
           };
-          persistAuth(token, normalizedUser);
+          persistAuth(normalizedUser);
         }
       })
-      .catch(() => {
-        clearAuth();
+      .catch((error) => {
+        if (error.response?.status === 401) clearAuth();
       });
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await api.post('/auth/logout');
+    } catch (error) {
+      console.warn('Could not revoke the server session during logout:', error.message);
+    } finally {
+      clearAuth();
+    }
+  };
 
   useEffect(() => {
     if (activeTab === 'hotel') {
@@ -514,7 +516,6 @@ export default function App() {
 
       const { data } = await api.post(`/auth/${authMode === 'register' ? 'register' : 'login'}`, payload);
       const responseData = data?.data ?? data ?? {};
-      const token = responseData.token;
       const authUser = responseData.user ?? {
         id: responseData.id,
         full_name: responseData.full_name,
@@ -523,11 +524,11 @@ export default function App() {
         role: responseData.role,
       };
 
-      if (!token || !authUser) {
+      if (!authUser?.id) {
         throw new Error('Phản hồi xác thực không hợp lệ.');
       }
 
-      persistAuth(token, authUser);
+      persistAuth(authUser);
       setAuthModalOpen(false);
       setAuthForm({
         full_name: '',
@@ -769,7 +770,7 @@ export default function App() {
                 <ShoppingBag size={15} aria-hidden="true" /> {tripItems.length}
               </button>
             )}
-            <button type="button" className="header-logout-btn" onClick={clearAuth}>Đăng xuất</button>
+            <button type="button" className="header-logout-btn" onClick={handleLogout}>Đăng xuất</button>
           </div>
         ) : (
           <div className="header-user-wrap">
@@ -1248,7 +1249,7 @@ export default function App() {
       {activeTab === 'account' && (
         <AccountTab
           user={user}
-          onLogout={clearAuth}
+          onLogout={handleLogout}
           onLoginRequest={() => {
             setAuthMode('login');
             setAuthModalOpen(true);
@@ -1281,6 +1282,10 @@ export default function App() {
 
             const selectedRoom = availableRooms.find((room) => room.id === Number(showBookingModal?.id)) || showBookingModal;
             if (!selectedRoom?.id) throw new Error('Bạn chưa chọn phòng hợp lệ để đặt.');
+            const hotelBranchId = Number(selectedBranchId || selectedRoom.hotel_branch_id);
+            if (!Number.isInteger(hotelBranchId) || hotelBranchId <= 0) {
+              throw new Error('Không xác định được chi nhánh của phòng đã chọn.');
+            }
 
             let customerId = user?.customerId;
             if (!customerId && user) {
@@ -1293,7 +1298,7 @@ export default function App() {
               guest_email: contactInfo.email,
               guest_phone: contactInfo.phone,
               room_id: Number(selectedRoom.id),
-              hotel_branch_id: Number(selectedBranchId || selectedRoom.hotel_branch_id || 1),
+              hotel_branch_id: hotelBranchId,
               checkin_date: bookingForm.checkIn,
               checkout_date: bookingForm.checkOut,
               num_guests: Number(bookingForm.guests || 1),
