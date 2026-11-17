@@ -9,7 +9,9 @@ const morgan = require('morgan');
 const jwt = require('jsonwebtoken');
 
 const sequelize = require('./config/database');
+const { authenticate, authorize } = require('./middlewares/auth');
 const { errorHandler } = require('./middlewares/errorHandler');
+const { lookupBooking, getArrivals, staffCheckIn } = require('./modules/bookings/bookings.controller');
 
 // ── Route imports ────────────────────────────────────────────
 const authRoutes         = require('./modules/auth/auth.routes');
@@ -129,6 +131,9 @@ app.use(`${API}/tours`,       toursRoutes);
 app.use(`${API}/cars`,        carRentalsRoutes);
 app.use(`${API}/orders`,      ordersRoutes);
 app.post(`${API}/checkout`,   ordersController.checkout);
+app.post('/staff/bookings/lookup', authenticate, authorize('Admin','Manager','Receptionist'), lookupBooking);
+app.get('/staff/arrivals', authenticate, authorize('Admin','Manager','Receptionist'), getArrivals);
+app.post('/staff/bookings/:bookingId/check-in', authenticate, authorize('Admin','Manager','Receptionist'), staffCheckIn);
 
 // City & Location nested endpoints for Tours & Cars
 app.get(`${API}/cities/:cityId/tours`, toursController.getToursByCity);

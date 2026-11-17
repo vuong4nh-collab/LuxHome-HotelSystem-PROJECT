@@ -1,5 +1,6 @@
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
+const { generateBookingCode } = require('../utils/bookingCode');
 
 // ── Hotel Chain / Property Structure ─────────────────────────
 const HotelChain = sequelize.define('HotelChain', {
@@ -150,6 +151,12 @@ const Booking = sequelize.define('Booking', {
   customer_id: { type: DataTypes.INTEGER, allowNull: false },
   hotel_branch_id: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
   room_id: { type: DataTypes.INTEGER, allowNull: false },
+  booking_code: { type: DataTypes.STRING(20), unique: true, allowNull: false },
+  booker_name: DataTypes.STRING(100),
+  booker_email: DataTypes.STRING(100),
+  booker_phone: DataTypes.STRING(20),
+  guest_name: DataTypes.STRING(100),
+  guest_email: DataTypes.STRING(100),
   checkin_date: { type: DataTypes.DATEONLY, allowNull: false },
   checkout_date: { type: DataTypes.DATEONLY, allowNull: false },
   actual_checkin: DataTypes.DATE,
@@ -161,8 +168,10 @@ const Booking = sequelize.define('Booking', {
   },
   cancellation_reason: DataTypes.TEXT,
   special_requests: DataTypes.TEXT,
+  policy_snapshot: { type: DataTypes.JSON, defaultValue: {} },
   room_price_per_night: { type: DataTypes.DECIMAL(12,2), allowNull: false },
   room_price_total: { type: DataTypes.DECIMAL(12,2), allowNull: false },
+  paid_amount: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
   extra_fee: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
   extended_hours: { type: DataTypes.INTEGER, defaultValue: 0 },
   discount_amount: { type: DataTypes.DECIMAL(12,2), defaultValue: 0 },
@@ -170,6 +179,45 @@ const Booking = sequelize.define('Booking', {
   confirmed_by: DataTypes.INTEGER,
   booking_date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
 }, { tableName: 'bookings', createdAt: 'booking_date' });
+
+Booking.beforeValidate((booking) => {
+  if (!booking.booking_code) {
+    booking.booking_code = generateBookingCode();
+  }
+});
+
+const BookingQRToken = sequelize.define('BookingQRToken', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  booking_id: { type: DataTypes.INTEGER, allowNull: false },
+  token_hash: { type: DataTypes.STRING(128), allowNull: false, unique: true },
+  valid_from: { type: DataTypes.DATE, allowNull: false },
+  valid_until: { type: DataTypes.DATE, allowNull: false },
+  used_at: DataTypes.DATE,
+}, { tableName: 'booking_qr_tokens', timestamps: false });
+
+const StayRegistration = sequelize.define('StayRegistration', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  booking_id: { type: DataTypes.INTEGER, allowNull: false },
+  booking_room_id: { type: DataTypes.INTEGER, allowNull: false },
+  full_name: { type: DataTypes.STRING(100), allowNull: false },
+  nationality: DataTypes.STRING(80),
+  doc_type: { type: DataTypes.ENUM('CCCD','PASSPORT','OTHER'), allowNull: false, defaultValue: 'CCCD' },
+  doc_number_enc: { type: DataTypes.TEXT, allowNull: false },
+  doc_number_idx: DataTypes.STRING(128),
+  exception_reason: DataTypes.TEXT,
+  registered_by: { type: DataTypes.INTEGER, allowNull: false },
+  registered_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+}, { tableName: 'stay_registrations', timestamps: false });
+
+const AuditLog = sequelize.define('AuditLog', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  actor_id: { type: DataTypes.INTEGER, allowNull: true, field: 'user_id' },
+  action: { type: DataTypes.STRING(50), allowNull: false },
+  entity: { type: DataTypes.STRING(50), field: 'entity_type' },
+  entity_id: DataTypes.INTEGER,
+  detail: { type: DataTypes.JSON, field: 'new_values' },
+  created_at: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+}, { tableName: 'audit_logs', timestamps: false });
 
 // ── Service ───────────────────────────────────────────────────
 const Service = sequelize.define('Service', {
@@ -482,6 +530,11 @@ Room.hasMany(Booking, { foreignKey: 'room_id' });
 Booking.belongsTo(Room, { foreignKey: 'room_id', as: 'room' });
 HotelBranch.hasMany(Booking, { foreignKey: 'hotel_branch_id', as: 'bookings' });
 Booking.belongsTo(HotelBranch, { foreignKey: 'hotel_branch_id', as: 'branch' });
+Booking.hasMany(BookingQRToken, { foreignKey: 'booking_id', as: 'qrTokens' });
+BookingQRToken.belongsTo(Booking, { foreignKey: 'booking_id', as: 'booking' });
+Booking.hasMany(StayRegistration, { foreignKey: 'booking_id', as: 'stayRegistrations' });
+StayRegistration.belongsTo(Booking, { foreignKey: 'booking_id', as: 'booking' });
+Booking.hasMany(AuditLog, { foreignKey: 'entity_id', constraints: false, as: 'auditLogs' });
 
 // Unified Order Associations
 Customer.hasMany(Order, { foreignKey: 'customer_id', as: 'orders' });
@@ -566,7 +619,7 @@ module.exports = {
   HotelChain, Hotel, HotelBranch, City, Location, HotelLocation,
   Role, User, Customer,
   RoomType, Room,
-  Booking,
+  Booking, BookingQRToken, StayRegistration, AuditLog,
   Service, ServiceOrder, ServiceOrderItem,
   HousekeepingTask,
   Invoice, InvoiceItem, Payment,

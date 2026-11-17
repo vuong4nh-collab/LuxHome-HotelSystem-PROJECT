@@ -64,3 +64,10 @@ export const fetchInvoiceByBooking = (bookingId) =>
 /** Thanh toán hoá đơn */
 export const processPayment = (invoiceId, payload) =>
   api.post(`/invoices/${invoiceId}/pay`, payload).then((r) => r.data);
+
+/** QR bank transfers that need staff verification against the bank statement */
+export const fetchPendingQrPayments = () =>
+  api.get('/payments/staff/pending').then((r) => r.data);
+
+export const confirmQrPayment = (paymentId) =>
+  api.post(`/payments/staff/${encodeURIComponent(paymentId)}/confirm`).then((r) => r.data);

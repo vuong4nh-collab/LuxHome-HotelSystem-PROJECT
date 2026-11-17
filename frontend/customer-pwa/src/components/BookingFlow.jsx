@@ -14,18 +14,17 @@ import {
   X,
   Smartphone,
   QrCode,
-  Clock,
   RefreshCw,
   ExternalLink,
 } from "lucide-react";
 import api from "../api";
 import AccessibleDialog from "./AccessibleDialog.jsx";
+import { PAYMENT_QR_IMAGE_URL } from "../paymentQr";
 
 /* ─────────────────────────────────────────────────────────────
    Config theo payment-flow-config.json
 ───────────────────────────────────────────────────────────── */
 const POLL_INTERVAL_MS   = 2500;          // option1_bankQr.config.pollIntervalMs
-const QR_EXPIRY_SECONDS  = 300;           // option1_bankQr.config.qrExpirySeconds
 const DEEPLINK_TIMEOUT_MS = 1800;         // option2_ewallet.config.detectionTimeoutMs
 
 const WALLET_CONFIG = {
@@ -41,25 +40,28 @@ function QrPaymentPanel({ orderId, amount, onSuccess, onFailed }) {
   const [qrState, setQrState] = useState("loading"); // loading | ready | expired | success | failed
   const [qrImageUrl, setQrImageUrl] = useState("");
   const [paymentId, setPaymentId] = useState("");
-  const [countdown, setCountdown] = useState(QR_EXPIRY_SECONDS);
-  const pollRef   = useRef(null);
-  const timerRef  = useRef(null);
+  const [trackingUnavailable, setTrackingUnavailable] = useState(false);
+  const [statusCheckMessage, setStatusCheckMessage] = useState("");
+  const pollRef = useRef(null);
 
   const stopAll = useCallback(() => {
-    clearInterval(pollRef.current);
-    clearInterval(timerRef.current);
+    clearTimeout(pollRef.current);
   }, []);
 
   const createQr = useCallback(async () => {
     setQrState("loading");
+    setTrackingUnavailable(false);
+    setStatusCheckMessage("");
+    setPaymentId("");
+    setQrImageUrl(PAYMENT_QR_IMAGE_URL);
+    setQrState("ready");
+
     try {
       const { data } = await api.post("/payments/qr", { orderId, amount });
-      setQrImageUrl(data.data.qrImageUrl);
       setPaymentId(data.data.paymentId);
-      setCountdown(QR_EXPIRY_SECONDS);
-      setQrState("ready");
     } catch (err) {
-      setQrState("failed");
+      console.error("Could not start QR payment status tracking:", err);
+      setTrackingUnavailable(true);
     }
   }, [orderId, amount]);
 
@@ -67,44 +69,42 @@ function QrPaymentPanel({ orderId, amount, onSuccess, onFailed }) {
   useEffect(() => {
     if (qrState !== "ready" || !paymentId) return;
 
-    // Countdown timer
-    timerRef.current = setInterval(() => {
-      setCountdown((c) => {
-        if (c <= 1) {
-          stopAll();
-          setQrState("expired");
-          return 0;
-        }
-        return c - 1;
-      });
-    }, 1000);
-
-    // Polling payment status
-    pollRef.current = setInterval(async () => {
+    let cancelled = false;
+    const checkPaymentStatus = async () => {
       try {
         const { data } = await api.get(`/payments/${paymentId}/status`);
-        const status = data.data.status;
+        const status = String(data.data.status).toLowerCase();
+        setStatusCheckMessage("");
         if (status === "success") {
-          stopAll();
           setQrState("success");
-          setTimeout(() => onSuccess(paymentId), 800);
+          onSuccess(paymentId);
+          return;
         } else if (status === "failed" || status === "expired") {
-          stopAll();
           setQrState(status);
           if (status === "failed") onFailed?.();
+          return;
         }
-      } catch { /* ignore poll errors */ }
-    }, POLL_INTERVAL_MS);
+      } catch {
+        setStatusCheckMessage("Chưa kiểm tra được trạng thái giao dịch. Hệ thống sẽ tự thử lại.");
+      }
 
-    return () => stopAll();
+      if (!cancelled) {
+        pollRef.current = setTimeout(checkPaymentStatus, POLL_INTERVAL_MS);
+      }
+    };
+
+    checkPaymentStatus();
+
+    return () => {
+      cancelled = true;
+      stopAll();
+    };
   }, [qrState, paymentId, stopAll, onSuccess, onFailed]);
 
   useEffect(() => {
     createQr();
     return stopAll;
   }, [createQr, stopAll]);
-
-  const fmt = (s) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
 
   if (qrState === "loading") return (
     <div className="pay-panel-center">
@@ -130,42 +130,62 @@ function QrPaymentPanel({ orderId, amount, onSuccess, onFailed }) {
     </div>
   );
 
+  if (qrState === "failed") return (
+    <div className="pay-panel-center">
+      <p role="alert" style={{ color: "var(--status-error)", fontSize: 13 }}>
+        Không tải được mã QR hoặc không thể tạo giao dịch. Vui lòng thử lại.
+      </p>
+      <button className="pay-refresh-btn" onClick={createQr}>
+        <RefreshCw size={14} /> Thử lại
+      </button>
+    </div>
+  );
+
   return (
     <div className="pay-qr-wrapper">
       <div className="pay-qr-bank-info">
-        <span>🏦 Vietcombank</span>
-        <span style={{ fontWeight: 700 }}>9876543210</span>
-        <span style={{ color: "var(--text-secondary)", fontSize: 11 }}>LUXSTAY HOTEL</span>
+        <span>🏦 Viettel Money / MB Bank</span>
+        <span style={{ fontWeight: 700 }}>9704 2292 0063 8433 044</span>
+        <span style={{ color: "var(--text-secondary)", fontSize: 11 }}>NGUYEN MINH VUONG</span>
       </div>
       <img
         src={qrImageUrl}
-        alt="VietQR Payment"
+        alt="Mã QR thanh toán của khách sạn"
         className="pay-qr-image"
-        onError={(e) => { e.target.src = ""; setQrState("failed"); }}
+        onError={() => setQrState("failed")}
       />
       <div className="pay-qr-amount">
         {Number(amount).toLocaleString("vi-VN")} <span>VNĐ</span>
       </div>
-      <div className={`pay-qr-countdown ${countdown <= 60 ? "pay-qr-urgent" : ""}`}>
-        <Clock size={13} /> Hết hạn sau {fmt(countdown)}
-      </div>
       <p className="pay-qr-hint">
-        Mở app ngân hàng bất kỳ → Quét QR → Xác nhận thanh toán
+        Quét mã QR, nhập số tiền hiển thị và nội dung chuyển khoản nếu ứng dụng yêu cầu.
       </p>
-
-      {/* DEV SANDBOX: nút xác nhận giả */}
-      {import.meta.env.DEV && (
-        <button
-          className="pay-sandbox-btn"
-          onClick={async () => {
-            try {
-              await api.post("/payments/sandbox-confirm", { paymentId });
-            } catch { /* ok */ }
-          }}
-        >
-          [DEV] Giả lập thanh toán thành công
-        </button>
+      <p className="pay-qr-hint">
+        Nội dung chuyển khoản: <strong>{orderId}</strong>
+      </p>
+      {paymentId && (
+        <p className="pay-qr-hint">
+          Mã đối chiếu: <strong>{paymentId}</strong>. Sau khi chuyển khoản, gửi mã này và mã booking cho lễ tân để xác minh.
+        </p>
       )}
+      {paymentId && (
+        <p className="pay-qr-hint" role="status">
+          Sau khi nhân viên đối chiếu và xác nhận khoản chuyển trong mục <strong>Chuyển khoản QR chờ xác nhận</strong>,
+          màn hình này sẽ tự chuyển sang bước Xác nhận. Xác nhận booking không đồng nghĩa với xác nhận đã nhận tiền.
+        </p>
+      )}
+      {statusCheckMessage && <p className="pay-qr-hint" role="status">{statusCheckMessage}</p>}
+      {trackingUnavailable && (
+        <>
+          <p role="status" className="pay-qr-hint">
+            QR vẫn dùng được, nhưng chưa kết nối ngân hàng để tự nhận giao dịch. Thanh toán cần được nhân viên xác minh thủ công.
+          </p>
+          <button className="pay-refresh-btn" onClick={createQr}>
+            <RefreshCw size={14} /> Kết nối trạng thái giao dịch
+          </button>
+        </>
+      )}
+
     </div>
   );
 }
@@ -383,10 +403,10 @@ export default function BookingFlow({
   };
 
   // Thanh toán thành công (từ QR hoặc Wallet)
-  const handlePaymentSuccess = (pId) => {
+  const handlePaymentSuccess = useCallback(() => {
     setPayStep("done");
     setStep(3);
-  };
+  }, []);
 
   const isStep1Valid = contactInfo.fullName.trim() && contactInfo.email.trim() && contactInfo.phone.trim();
 

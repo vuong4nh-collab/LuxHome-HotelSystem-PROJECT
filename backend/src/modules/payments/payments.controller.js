@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { sequelize, Payment, Invoice, Booking, Order, Notification } = require('../../models');
+const { sequelize, Payment, Invoice, Booking, Order, Notification, AuditLog } = require('../../models');
 const { createError } = require('../../middlewares/errorHandler');
 
 const QR_EXPIRY_SECONDS = 300; // 5 phút theo config
@@ -78,6 +78,68 @@ const ensureInvoice = async (bookingId, amount, transaction) => {
   return invoice;
 };
 
+const createPaymentRecord = async (target, orderId, values) => {
+  const transaction = await sequelize.transaction();
+  try {
+    let invoiceId = target.invoiceId;
+    if (!target.orderDbId && !invoiceId) {
+      const bookingId = String(orderId).match(/^(?:BK)?(\d+)$/)?.[1];
+      if (bookingId) {
+        const invoice = await ensureInvoice(Number(bookingId), values.amount, transaction);
+        invoiceId = invoice.id;
+      }
+    }
+
+    const payment = await Payment.create({
+      ...values,
+      order_id: target.orderDbId,
+      invoice_id: invoiceId || null,
+      hotel_branch_id: target.branchId,
+    }, { transaction });
+    await transaction.commit();
+    return payment;
+  } catch (error) {
+    if (!transaction.finished) await transaction.rollback();
+    throw error;
+  }
+};
+
+const applySuccessfulPayment = async (payment, orderId, amount, transaction) => {
+  let order = payment.order_id
+    ? await Order.findByPk(payment.order_id, { transaction })
+    : null;
+  if (!order && String(orderId).startsWith('ORD-')) {
+    order = await Order.findOne({ where: { order_code: orderId }, transaction });
+  }
+
+  if (order) {
+    await order.update({ payment_status: 'PAID', order_status: 'CONFIRMED' }, { transaction });
+    return;
+  }
+
+  const bookingId = String(orderId).match(/^(?:BK)?(\d+)$/)?.[1];
+  if (!bookingId) throw createError('Không tìm thấy đơn hàng hoặc đặt phòng', 404);
+  const booking = await Booking.findByPk(Number(bookingId), { transaction });
+  if (!booking) throw createError('Không tìm thấy đặt phòng', 404);
+
+  const invoice = await ensureInvoice(Number(bookingId), Number(amount), transaction);
+  await invoice.update({ status: 'Paid' }, { transaction });
+  await booking.update({
+    paid_amount: Number(booking.paid_amount || 0) + Number(amount),
+  }, { transaction });
+  if (!payment.invoice_id) {
+    await payment.update({ invoice_id: invoice.id }, { transaction });
+  }
+  await Notification.create({
+    type: 'Payment',
+    hotel_branch_id: booking.hotel_branch_id,
+    title: 'Thanh toán thành công',
+    message: `Booking #${bookingId} đã được thanh toán ${Number(amount).toLocaleString('vi-VN')} VNĐ`,
+    related_id: invoice.id,
+    related_type: 'invoice',
+  }, { transaction });
+};
+
 // ══════════════════════════════════════════════════════════════
 // POST /api/payments/qr
 // Tạo QR code ngân hàng (VietQR / NAPAS 247)
@@ -94,9 +156,6 @@ const createQrPayment = async (req, res, next) => {
     const numAmount = Number(amount);
     if (!Number.isFinite(numAmount) || numAmount <= 0) throw createError('amount phải là số dương', 400);
 
-    const paymentId = genPaymentId();
-    const expiresAt = new Date(Date.now() + QR_EXPIRY_SECONDS * 1000).toISOString();
-
     // Sinh QR VietQR sandbox (dùng vietqr.io API công khai, không cần key)
     // Bank: VIETCOMBANK, account: 1234567890, amount in VND
     const bankBin = '970436';       // Vietcombank BIN
@@ -106,10 +165,35 @@ const createQrPayment = async (req, res, next) => {
     const qrImageUrl = `https://img.vietqr.io/image/${bankBin}-${accountNo}-compact2.png?amount=${numAmount}&addInfo=${encodeURIComponent(addInfo)}&accountName=${encodeURIComponent(accountName)}`;
 
     const target = await resolvePaymentTarget(orderId, numAmount);
-    await Payment.create({
-      order_id: target.orderDbId,
-      invoice_id: target.invoiceId,
-      hotel_branch_id: target.branchId,
+    const existingPayments = await Payment.findAll({
+      where: {
+        status: 'Pending',
+        payment_method: 'QRCode',
+        ...(target.orderDbId ? { order_id: target.orderDbId } : { invoice_id: target.invoiceId }),
+      },
+      order: [['id', 'DESC']],
+      limit: 20,
+    });
+    const existingPayment = existingPayments.find((payment) => {
+      const metadata = parsePaymentMetadata(payment.notes);
+      return String(metadata.orderId || '') === String(orderId) &&
+        Number(payment.amount) === numAmount;
+    });
+    if (existingPayment) {
+      res.json({
+        success: true,
+        data: {
+          paymentId: existingPayment.transaction_ref,
+          qrImageUrl,
+          expiresAt: parsePaymentMetadata(existingPayment.notes).expiresAt,
+        },
+      });
+      return;
+    }
+
+    const paymentId = genPaymentId();
+    const expiresAt = new Date(Date.now() + QR_EXPIRY_SECONDS * 1000).toISOString();
+    await createPaymentRecord(target, orderId, {
       amount: numAmount,
       payment_method: 'QRCode',
       transaction_ref: paymentId,
@@ -135,7 +219,8 @@ const getPaymentStatus = async (req, res, next) => {
     const dbPayment = await Payment.findOne({ where: { transaction_ref: paymentId } });
     if (!dbPayment) throw createError('Không tìm thấy giao dịch', 404);
     const metadata = parsePaymentMetadata(dbPayment.notes);
-    const isExpired = dbPayment.status === 'Pending' && metadata.expiresAt &&
+    const isExpired = dbPayment.payment_method !== 'QRCode' &&
+      dbPayment.status === 'Pending' && metadata.expiresAt &&
       new Date(metadata.expiresAt).getTime() <= Date.now();
     res.json({
       success: true,
@@ -164,6 +249,7 @@ const createWalletPayment = async (req, res, next) => {
 
     const numAmount = Number(amount);
     if (!Number.isFinite(numAmount) || numAmount <= 0) throw createError('amount phải là số dương', 400);
+    const target = await resolvePaymentTarget(orderId, numAmount);
     const paymentId = genPaymentId();
     const expiresAt = new Date(Date.now() + QR_EXPIRY_SECONDS * 1000).toISOString();
 
@@ -177,11 +263,7 @@ const createWalletPayment = async (req, res, next) => {
       webFallbackUrl = `https://zalopay.vn/pay?appId=2553&orderId=${orderId}&amount=${numAmount}&description=${encodeURIComponent('Dat phong LuxStay')}&returnUrl=${encodeURIComponent('http://localhost:3002/payment-result')}`;
     }
 
-    const target = await resolvePaymentTarget(orderId, numAmount);
-    await Payment.create({
-      order_id: target.orderDbId,
-      invoice_id: target.invoiceId,
-      hotel_branch_id: target.branchId,
+    await createPaymentRecord(target, orderId, {
       amount: numAmount,
       payment_method: wallet === 'momo' ? 'Momo' : 'VNPay',
       transaction_ref: paymentId,
@@ -254,36 +336,7 @@ const paymentWebhook = async (req, res, next) => {
       if (existingPayment.status !== 'Pending') throw createError('Giao dịch đã ở trạng thái kết thúc', 409);
 
       if (status === 'success') {
-        let order = null;
-        if (existingPayment.order_id) {
-          order = await Order.findByPk(existingPayment.order_id, { transaction });
-        }
-        if (!order && String(orderId).startsWith('ORD-')) {
-          order = await Order.findOne({ where: { order_code: orderId }, transaction });
-        }
-        if (order) {
-          await order.update({ payment_status: 'PAID', order_status: 'CONFIRMED' }, { transaction });
-        }
-
-        const bookingMatch = String(orderId).match(/^(?:BK)?(\d+)$/);
-        if (!order && bookingMatch) {
-          const bookingId = Number(bookingMatch[1]);
-          const booking = await Booking.findByPk(bookingId, { transaction });
-          if (!booking) throw createError('Không tìm thấy đặt phòng', 404);
-          const invoice = await ensureInvoice(bookingId, Number(amount), transaction);
-          await invoice.update({ status: 'Paid' }, { transaction });
-          await Notification.create({
-            type: 'Payment',
-            hotel_branch_id: booking.hotel_branch_id,
-            title: 'Thanh toán thành công',
-            message: `Booking #${bookingId} đã được thanh toán ${Number(amount).toLocaleString('vi-VN')} VNĐ`,
-            related_id: invoice.id,
-            related_type: 'invoice',
-          }, { transaction });
-          if (!existingPayment.invoice_id) {
-            await existingPayment.update({ invoice_id: invoice.id }, { transaction });
-          }
-        }
+        await applySuccessfulPayment(existingPayment, orderId, amount, transaction);
       }
 
       await existingPayment.update({
@@ -299,6 +352,85 @@ const paymentWebhook = async (req, res, next) => {
 
     res.json({ success: true, message: 'Webhook received' });
   } catch (err) { next(err); }
+};
+
+const listPendingPayments = async (req, res, next) => {
+  try {
+    const payments = await Payment.findAll({
+      where: { status: 'Pending', payment_method: 'QRCode' },
+      order: [['id', 'DESC']],
+      limit: 100,
+    });
+    res.json({
+      success: true,
+      data: payments.map((payment) => {
+        const metadata = parsePaymentMetadata(payment.notes);
+        return {
+          paymentId: payment.transaction_ref,
+          orderId: metadata.orderId || null,
+          amount: Number(payment.amount),
+          createdAt: payment.paid_at,
+          status: payment.status,
+        };
+      }),
+    });
+  } catch (err) { next(err); }
+};
+
+const confirmPaymentByStaff = async (req, res, next) => {
+  const { paymentId } = req.params;
+  const bankReference = typeof req.body?.bankReference === 'string'
+    ? req.body.bankReference.trim().slice(0, 100)
+    : '';
+  if (!paymentId || paymentId.length > 100) {
+    return next(createError('paymentId không hợp lệ', 400));
+  }
+
+  let transaction;
+  try {
+    transaction = await sequelize.transaction();
+    const payment = await Payment.findOne({
+      where: { transaction_ref: paymentId },
+      lock: transaction.LOCK.UPDATE,
+      transaction,
+    });
+    if (!payment) throw createError('Không tìm thấy giao dịch', 404);
+    if (payment.status !== 'Pending') throw createError('Giao dịch không ở trạng thái chờ xác nhận', 409);
+
+    const metadata = parsePaymentMetadata(payment.notes);
+    const orderId = metadata.orderId;
+    if (!isValidOrderIdentifier(orderId)) throw createError('Thông tin đơn hàng không hợp lệ', 409);
+
+    await applySuccessfulPayment(payment, orderId, Number(payment.amount), transaction);
+    const verificationMetadata = {
+      ...metadata,
+      staffVerifiedBy: req.user.id,
+      staffVerifiedAt: new Date().toISOString(),
+    };
+    if (bankReference) verificationMetadata.bankReference = bankReference;
+    await payment.update({
+      status: 'Success',
+      paid_at: new Date(),
+      notes: JSON.stringify(verificationMetadata),
+    }, { transaction });
+    await AuditLog.create({
+      actor_id: req.user.id,
+      action: 'CONFIRM_PAYMENT',
+      entity: 'payment',
+      entity_id: payment.id,
+      detail: {
+        orderId,
+        amount: Number(payment.amount),
+        confirmationMethod: bankReference ? 'staff_with_bank_reference' : 'staff_manual',
+        ...(bankReference ? { bankReference } : {}),
+      },
+    }, { transaction });
+    await transaction.commit();
+    res.json({ success: true, message: 'Đã xác nhận khách hàng thanh toán', data: { paymentId, status: 'Success' } });
+  } catch (err) {
+    if (transaction && !transaction.finished) await transaction.rollback();
+    next(err);
+  }
 };
 
 // ══════════════════════════════════════════════════════════════
@@ -345,4 +477,6 @@ module.exports = {
   createWalletPayment,
   paymentWebhook,
   sandboxConfirm,
+  listPendingPayments,
+  confirmPaymentByStaff,
 };

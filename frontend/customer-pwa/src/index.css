@@ -982,6 +982,16 @@ button, input, textarea, select {
   box-shadow: var(--elevation-modal);
 }
 
+.auth-modal {
+  align-items: center !important;
+  padding: 16px;
+}
+
+.auth-modal .modal-pwa-content {
+  border-radius: var(--radius-lg) !important;
+  border-top: none !important;
+}
+
 /* ── 15. Concierge Chat (LuxBot) ─────────────────────────────── */
 .concierge-fab-anchor {
   position: fixed;

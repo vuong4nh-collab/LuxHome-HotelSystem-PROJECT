@@ -99,6 +99,7 @@ export default function App() {
     confirmPassword: '',
   });
   const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [activeTab, setActiveTab] = useState('explore');
   const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
   const [waitingServiceWorker, setWaitingServiceWorker] = useState(null);
@@ -1367,8 +1368,8 @@ export default function App() {
         >
           <div className="modal-pwa-content auth-dialog">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 id="auth-dialog-title" style={{ fontSize: '18px' }}>Đăng nhập để xác nhận đặt phòng</h3>
-              <button type="button" style={{ background: 'none', border: 'none', color: '#fff', fontSize: '20px' }} onClick={() => setAuthModalOpen(false)} aria-label="Đóng đăng nhập">✕</button>
+              <h3 id="auth-dialog-title" style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-primary)' }}>Tài khoản LuxHome</h3>
+              <button type="button" style={{ background: 'none', border: 'none', color: 'var(--text-primary)', fontSize: '22px', cursor: 'pointer', padding: '4px 8px' }} onClick={() => setAuthModalOpen(false)} aria-label="Đóng đăng nhập">✕</button>
             </div>
 
             <div className="auth-toggle">

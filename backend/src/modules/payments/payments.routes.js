@@ -13,6 +13,9 @@ if (process.env.NODE_ENV === 'test' ||
   router.post('/sandbox-confirm', authenticate, authorize('Admin', 'Manager'), ctrl.sandboxConfirm);
 }
 
+router.get('/staff/pending', authenticate, authorize('Admin', 'Manager', 'Receptionist'), ctrl.listPendingPayments);
+router.post('/staff/:paymentId/confirm', authenticate, authorize('Admin', 'Manager', 'Receptionist'), ctrl.confirmPaymentByStaff);
+
 // ── Payment creation & status endpoints (hỗ trợ cả khách vãng lai & thành viên) ──
 router.use(optionalAuth);
 

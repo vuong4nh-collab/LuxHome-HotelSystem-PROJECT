@@ -74,9 +74,9 @@ export default function HotelBookings({ onOpenNewBooking, onOpenInvoice }) {
 
   // Chuẩn hoá field từ API backend (snake_case) sang hiển thị
   const getCustomerName = (bk) =>
-    bk.customer?.full_name || bk.customerName || '—';
+    bk.booker_name || bk.guest_name || bk.customer?.full_name || bk.customerName || '—';
   const getPhone = (bk) =>
-    bk.customer?.phone || bk.phone || '—';
+    bk.booker_phone || bk.guest_phone || bk.phone || bk.customer?.phone || '—';
   const getRoomNumber = (bk) =>
     bk.room?.room_number || bk.roomNumber || '—';
   const getCheckIn = (bk) =>
@@ -85,6 +85,13 @@ export default function HotelBookings({ onOpenNewBooking, onOpenInvoice }) {
     bk.checkout_date || bk.checkOut || '—';
   const getTotal = (bk) =>
     (bk.room_price_total ?? bk.totalPrice ?? 0).toLocaleString('vi-VN');
+  const getPaymentStatus = (bk) => {
+    const total = Number(bk.room_price_total ?? bk.totalPrice ?? 0);
+    const paid = Number(bk.paid_amount ?? 0);
+    if (paid <= 0) return { label: 'Chưa thanh toán', className: 'pending' };
+    if (total > 0 && paid < total) return { label: 'Thanh toán một phần', className: 'pending' };
+    return { label: 'Đã thanh toán', className: 'completed' };
+  };
   const getDeposit = (bk) =>
     (bk.deposit ?? 0).toLocaleString('vi-VN');
 
@@ -117,6 +124,9 @@ export default function HotelBookings({ onOpenNewBooking, onOpenInvoice }) {
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}
+      <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, background: '#fff7ed', color: '#9a3412' }}>
+        “Đã xác nhận” là trạng thái đặt phòng, không xác nhận đã nhận tiền. Hãy kiểm tra cột Thanh toán và xác nhận chuyển khoản trong mục Hóa đơn &amp; Báo cáo Tài chính.
+      </div>
 
       <div className="panel">
         {loading ? (
@@ -138,6 +148,7 @@ export default function HotelBookings({ onOpenNewBooking, onOpenInvoice }) {
                 <th>Ngày Nhận</th>
                 <th>Ngày Trả</th>
                 <th>Tổng Tiền</th>
+                <th>Thanh Toán</th>
                 <th>Trạng Thái</th>
                 <th>Thao Tác</th>
               </tr>
@@ -145,6 +156,7 @@ export default function HotelBookings({ onOpenNewBooking, onOpenInvoice }) {
             <tbody>
               {bookings.map((bk) => {
                 const busy = actionLoading === bk.id;
+                const paymentStatus = getPaymentStatus(bk);
                 return (
                   <tr key={bk.id}>
                     <td><strong>{bk.id}</strong></td>
@@ -154,6 +166,11 @@ export default function HotelBookings({ onOpenNewBooking, onOpenInvoice }) {
                     <td>{getCheckIn(bk)}</td>
                     <td>{getCheckOut(bk)}</td>
                     <td>{getTotal(bk)} đ</td>
+                    <td>
+                      <span className={`status-badge ${paymentStatus.className}`}>
+                        {paymentStatus.label}
+                      </span>
+                    </td>
                     <td>
                       <span className={`status-badge ${STATUS_CLASS[bk.status] || ''}`}>
                         {STATUS_LABEL[bk.status] || bk.status}

@@ -6,6 +6,10 @@ const { authenticate, authorize, optionalAuth } = require('../../middlewares/aut
 // Public / Optional Auth: Tạo đặt phòng (hỗ trợ cả khách vãng lai và thành viên)
 router.post('/', optionalAuth, ctrl.createBooking);
 
+// Staff booking lookup / arrivals
+router.post('/lookup', authenticate, authorize('Admin','Manager','Receptionist'), ctrl.lookupBooking);
+router.get('/arrivals', authenticate, authorize('Admin','Manager','Receptionist'), ctrl.getArrivals);
+
 // Protected routes: Yêu cầu đăng nhập
 router.use(authenticate);
 

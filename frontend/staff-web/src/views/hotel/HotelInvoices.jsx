@@ -3,6 +3,8 @@ import {
   fetchInvoices,
   fetchInvoiceById,
   processPayment,
+  fetchPendingQrPayments,
+  confirmQrPayment,
 } from '../../services/bookingService';
 
 const STATUS_LABEL = {
@@ -46,6 +48,10 @@ export default function HotelInvoices() {
   const [payMethod, setPayMethod] = useState('Cash');
   const [payRef, setPayRef] = useState('');
   const [payLoading, setPayLoading] = useState(false);
+  const [pendingQrPayments, setPendingQrPayments] = useState([]);
+  const [pendingQrLoading, setPendingQrLoading] = useState(false);
+  const [pendingQrError, setPendingQrError] = useState('');
+  const [confirmingPaymentId, setConfirmingPaymentId] = useState('');
 
   const loadInvoices = useCallback(async () => {
     setLoading(true);
@@ -65,6 +71,37 @@ export default function HotelInvoices() {
   useEffect(() => {
     loadInvoices();
   }, [loadInvoices]);
+
+  const loadPendingQrPayments = useCallback(async () => {
+    setPendingQrLoading(true);
+    setPendingQrError('');
+    try {
+      const res = await fetchPendingQrPayments();
+      setPendingQrPayments(res.data || []);
+    } catch (err) {
+      setPendingQrError(err.response?.data?.message || 'Không thể tải giao dịch QR đang chờ xác nhận');
+    } finally {
+      setPendingQrLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPendingQrPayments();
+  }, [loadPendingQrPayments]);
+
+  const handleConfirmQrPayment = async (payment) => {
+    setConfirmingPaymentId(payment.paymentId);
+    setPendingQrError('');
+    try {
+      await confirmQrPayment(payment.paymentId);
+      setPendingQrPayments((current) => current.filter((item) => item.paymentId !== payment.paymentId));
+      await loadInvoices();
+    } catch (err) {
+      setPendingQrError(err.response?.data?.message || 'Không thể xác nhận giao dịch QR');
+    } finally {
+      setConfirmingPaymentId('');
+    }
+  };
 
   // ─── Mở chi tiết ────────────────────────────
   const openDetail = async (invoice) => {
@@ -134,6 +171,55 @@ export default function HotelInvoices() {
       </div>
 
       {error && <div className="alert alert-danger">{error}</div>}
+
+      <div className="panel">
+        <div className="flex-between" style={{ marginBottom: 12 }}>
+          <div>
+            <h3>Chuyển khoản QR chờ xác nhận</h3>
+            <p>Bấm xác nhận để cập nhật trạng thái thanh toán và báo cho khách hàng. Chỉ xác nhận đúng giao dịch.</p>
+          </div>
+          <button className="btn btn-outline" onClick={loadPendingQrPayments} disabled={pendingQrLoading}>
+            ↻ Làm mới
+          </button>
+        </div>
+        {pendingQrError && <div className="alert alert-danger">{pendingQrError}</div>}
+        {pendingQrLoading ? (
+          <div className="text-center" style={{ padding: 20 }}>⏳ Đang tải giao dịch...</div>
+        ) : pendingQrPayments.length === 0 ? (
+          <div className="text-center" style={{ padding: 20, color: 'var(--text-muted)' }}>
+            Không có giao dịch QR nào đang chờ xác nhận.
+          </div>
+        ) : (
+          <table className="custom-table">
+            <thead>
+              <tr>
+                <th>Mã booking/đơn</th>
+                <th>Số tiền</th>
+                <th>Mã đối chiếu</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingQrPayments.map((payment) => (
+                <tr key={payment.paymentId}>
+                  <td>{payment.orderId || '—'}</td>
+                  <td><strong>{formatMoney(payment.amount)}</strong></td>
+                  <td>{payment.paymentId}</td>
+                  <td>
+                    <button
+                      className="btn btn-sm btn-primary"
+                      disabled={confirmingPaymentId === payment.paymentId}
+                      onClick={() => handleConfirmQrPayment(payment)}
+                    >
+                      {confirmingPaymentId === payment.paymentId ? 'Đang xác nhận...' : 'Xác nhận khách đã thanh toán'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
 
       <div className="panel">
         <h3>Danh Sách Hóa Đơn</h3>

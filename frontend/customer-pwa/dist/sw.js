@@ -1,4 +1,4 @@
-const CACHE_NAME = 'luxstay-pwa-v5';
+const CACHE_NAME = 'luxstay-pwa-v7';
 const CACHE_PREFIX = 'luxstay-pwa-';
 const APP_SHELL_URLS = [
   '/',

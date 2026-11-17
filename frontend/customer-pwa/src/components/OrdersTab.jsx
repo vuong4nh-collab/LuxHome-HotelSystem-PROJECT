@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import api from '../api';
 import AccessibleDialog from './AccessibleDialog.jsx';
+import { PAYMENT_QR_IMAGE_URL } from '../paymentQr';
 
 const STATUS_TABS = [
   { id: 'pending', label: 'Chờ thanh toán', matchStatuses: ['PENDING_PAYMENT', 'Pending'] },
@@ -542,15 +543,15 @@ export default function OrdersTab({
             <div className="qr-pay-body">
               <div className="vietqr-wrap">
                 <img
-                  src={`https://api.vietqr.io/image/970422-0901000005-print.jpg?amount=${showPaymentModal.final_amount}&addInfo=${encodeURIComponent(showPaymentModal.order_code)}&accountName=LUXSTAY%20HOTEL`}
-                  alt="VietQR Payment"
+                  src={PAYMENT_QR_IMAGE_URL}
+                  alt="Mã QR thanh toán của khách sạn"
                   className="qr-img"
                 />
               </div>
 
               <div className="bank-card-info">
-                <div><span>Ngân hàng:</span> <strong>MB Bank</strong></div>
-                <div><span>Số tài khoản:</span> <strong>0901000005</strong></div>
+                <div><span>Ngân hàng:</span> <strong>Viettel Money / MB Bank</strong></div>
+                <div><span>Số tài khoản:</span> <strong>9704 2292 0063 8433 044</strong></div>
                 <div><span>Số tiền:</span> <strong className="text-price">{Number(showPaymentModal.final_amount).toLocaleString('vi-VN')} đ</strong></div>
                 <div>
                   <span>Nội dung:</span>

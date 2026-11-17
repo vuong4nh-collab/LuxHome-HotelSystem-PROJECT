@@ -29,14 +29,16 @@ INSERT INTO roles (name, description) VALUES
 
 -- ── Users ──────────────────────────────────────────────────
 -- Passwords are bcrypt hash of 'Password@123'
+-- Hash generated with: bcrypt.hash('Password@123', 12)
 INSERT INTO users (role_id, hotel_branch_id, full_name, email, phone, password_hash, is_active) VALUES
-(1, NULL, 'Admin System',   'admin@hotel.com',        '0901000001', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
-(1, NULL, 'Admin chuỗi', 'chainadmin@luxstay.vn', '0902000001', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
-(2, NULL, 'Manager khu vực', 'area.manager@luxstay.vn', '0902000002', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
-(2, 1, 'Nguyễn Văn Quản', 'manager@hotel.com', '0901000002', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
-(3, 1, 'Trần Thị Lễ Tân', 'receptionist@hotel.com', '0901000003', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
-(4, 1, 'Lê Văn Dọn', 'housekeeping@hotel.com', '0901000004', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE),
-(5, NULL, 'Phạm Thị Khách', 'customer@hotel.com', '0901000005', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMaAE6rXZY3vjWY3.JB2GYqpni', TRUE);
+(1, NULL, 'Admin System',      'admin@hotel.com',           '0901000001', '$2a$12$4G9O7buMWKlfCppYDwCrJ.HpC/3S/A.8DCj3mVQrQL2Nm6k6cb4S6', TRUE),
+(1, NULL, 'Admin chuỗi',       'chainadmin@luxstay.vn',     '0902000001', '$2a$12$4G9O7buMWKlfCppYDwCrJ.HpC/3S/A.8DCj3mVQrQL2Nm6k6cb4S6', TRUE),
+(2, NULL, 'Manager khu vực',   'area.manager@luxstay.vn',   '0902000002', '$2a$12$4G9O7buMWKlfCppYDwCrJ.HpC/3S/A.8DCj3mVQrQL2Nm6k6cb4S6', TRUE),
+(2, 1,    'Nguyễn Văn Quản',   'manager@hotel.com',         '0901000002', '$2a$12$4G9O7buMWKlfCppYDwCrJ.HpC/3S/A.8DCj3mVQrQL2Nm6k6cb4S6', TRUE),
+(3, 1,    'Trần Thị Lễ Tân',   'receptionist@hotel.com',    '0901000003', '$2a$12$4G9O7buMWKlfCppYDwCrJ.HpC/3S/A.8DCj3mVQrQL2Nm6k6cb4S6', TRUE),
+(4, 1,    'Lê Văn Dọn',        'housekeeping@hotel.com',    '0901000004', '$2a$12$4G9O7buMWKlfCppYDwCrJ.HpC/3S/A.8DCj3mVQrQL2Nm6k6cb4S6', TRUE),
+(5, NULL, 'Phạm Thị Khách',    'customer@hotel.com',        '0901000005', '$2a$12$4G9O7buMWKlfCppYDwCrJ.HpC/3S/A.8DCj3mVQrQL2Nm6k6cb4S6', TRUE);
+-- NOTE: All 7 accounts above use password: Password@123
 
 -- ── Room Types ──────────────────────────────────────────────
 INSERT INTO room_types (name, description, base_price, max_guests, amenities, image_url) VALUES

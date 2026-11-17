@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import api from '../api';
 import AccessibleDialog from './AccessibleDialog.jsx';
+import { PAYMENT_QR_IMAGE_URL } from '../paymentQr';
 
 const PAYMENT_METHODS = [
   { id: 'BankTransfer', name: 'Chuyển Khoản Ngân Hàng (VietQR)', icon: QrCode, desc: 'Quét mã QR thanh toán nhanh 24/7' },
@@ -178,20 +179,20 @@ export default function UnifiedCheckoutModal({
                 </div>
                 <div className="qr-code-img-wrap">
                   <img
-                    src={`https://api.vietqr.io/image/970422-0901000005-print.jpg?amount=${createdOrder.final_amount}&addInfo=${encodeURIComponent(createdOrder.order_code)}&accountName=LUXSTAY%20HOTEL`}
-                    alt="VietQR Payment"
+                    src={PAYMENT_QR_IMAGE_URL}
+                    alt="QR thanh toán"
                     className="vietqr-img"
                   />
                 </div>
                 <div className="qr-bank-details">
                   <div className="bank-info-line">
-                    <span>Ngân hàng:</span> <strong>MB Bank (Quân Đội)</strong>
+                    <span>Ngân hàng:</span> <strong>Viettel Money / MB Bank</strong>
                   </div>
                   <div className="bank-info-line">
-                    <span>Số tài khoản:</span> <strong>0901000005</strong>
+                    <span>Số tài khoản:</span> <strong>9704 2292 0063 8433 044</strong>
                   </div>
                   <div className="bank-info-line">
-                    <span>Chủ tài khoản:</span> <strong>LUXSTAY RESORT GROUP</strong>
+                    <span>Chủ tài khoản:</span> <strong>NGUYEN MINH VUONG</strong>
                   </div>
                   <div className="bank-info-line">
                     <span>Nội dung chuyển khoản:</span>

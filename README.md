@@ -116,6 +116,7 @@ Dự án đã tích hợp sẵn luồng **CI/CD tự động** thông qua GitHub
 - **Buồng Phòng**: `GET /api/housekeeping/tasks`, `PATCH /api/housekeeping/tasks/:id/status`
 - **Order Dịch Vụ**: `GET /api/services`, `POST /api/service-orders`
 - **Hóa Đơn & Thanh Toán**: `GET /api/invoices/:bookingId`, `POST /api/invoices/:id/pay`
+- **Xác nhận chuyển khoản QR**: `GET /api/payments/staff/pending`, `POST /api/payments/staff/:paymentId/confirm` (chỉ lễ tân/quản lý/admin; bắt buộc đối chiếu sao kê và gửi `bankReference`)
 - **Dashboard**: `GET /api/dashboard/summary`, `GET /api/dashboard/occupancy`
 
 ---

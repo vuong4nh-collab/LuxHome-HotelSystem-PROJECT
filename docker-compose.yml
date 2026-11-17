@@ -22,6 +22,8 @@ services:
       - ./database/migrations/004_city_location_hotel_search.sql:/docker-entrypoint-initdb.d/05-city-location-hotel-search.sql
       - ./database/migrations/005_tour_car_unified_order.sql:/docker-entrypoint-initdb.d/06-tour-car-unified-order.sql
       - ./database/migrations/006_demo_tour_car_orders.sql:/docker-entrypoint-initdb.d/07-demo-tour-car-orders.sql
+      - ./database/migrations/010_booking_checkin_mvp.sql:/docker-entrypoint-initdb.d/10-booking-checkin-mvp.sql
+      - ./database/migrations/011_payment_qr_order_support.sql:/docker-entrypoint-initdb.d/11-payment-qr-order-support.sql
     networks:
       - hotel_net
     healthcheck:
@@ -93,6 +95,7 @@ services:
     environment:
       VITE_API_URL: /api
       VITE_SOCKET_URL: /
+      VITE_PAYMENT_QR_IMAGE_URL: ${VITE_PAYMENT_QR_IMAGE_URL:-/my-payment-qr.png}
     ports:
       - "3000:3000"
       - "3002:3000"
