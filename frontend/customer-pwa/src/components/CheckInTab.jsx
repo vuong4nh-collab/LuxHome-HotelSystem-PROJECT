@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  KeyRound, QrCode, LogOut, CheckCircle2, AlertCircle, Camera, ShieldCheck,
+  KeyRound, QrCode, LogOut, CheckCircle2, AlertCircle, ShieldCheck,
   Bell, RefreshCw, Check
 } from 'lucide-react';
 import api from '../api';
@@ -34,8 +34,6 @@ export default function CheckInTab({
     specialRequests: '',
     agreedRules: true,
   });
-  const [idFrontUploaded, setIdFrontUploaded] = useState(false);
-  const [idBackUploaded, setIdBackUploaded] = useState(false);
   const [submittingCheckIn, setSubmittingCheckIn] = useState(false);
   const [checkInSuccess, setCheckInSuccess] = useState(false);
   const [checkInError, setCheckInError] = useState('');
